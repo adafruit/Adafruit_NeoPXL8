@@ -22,8 +22,8 @@ class Adafruit_NeoPXL8 : public Adafruit_NeoPixel {
  protected:
 
   Adafruit_ZeroDMA dma;
-  uint8_t          pins[8],     // Pin list for 8 NeoPixel strips
-                   bitmask[8],  // Pattern generator bitmask for each pin
+  int8_t           pins[8];     // Pin list for 8 NeoPixel strips
+  uint8_t          bitmask[8],  // Pattern generator bitmask for each pin
                   *dmaBuf;      // Allocated buffer for pixel data + extra
   uint32_t        *alignedAddr; // long-aligned ptr into dmaBuf (see code)
   uint16_t         brightness;
