@@ -34,8 +34,8 @@ so this is not a 100% drop-in replacement for all NeoPixel code right now.
 // subsequent pixels OK due to signal reshaping through the 1st.
 
 static const    int8_t   defaultPins[] = { 0,1,2,3,4,5,6,7 };
-static volatile boolean  sending = 0;
-static volatile uint32_t lastBitTime;
+static volatile boolean  sending = 0; // Set while DMA transfer is active
+static volatile uint32_t lastBitTime; // micros() when last bit issued
 
 Adafruit_NeoPXL8::Adafruit_NeoPXL8(
   uint16_t n, uint8_t *p, neoPixelType t) : Adafruit_NeoPixel(n * 8, -1, t),
@@ -198,7 +198,7 @@ void Adafruit_NeoPXL8::stage(void) {
     0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00
   };
 
-  // Clear DMA buffer data
+  // Clear DMA buffer data (32-bit writes are used to save a few cycles)
   uint32_t *in  = (uint32_t *)dmaFill,
            *out = alignedAddr;
   for(i=0; i<bytesPerRow; i++) {
@@ -269,3 +269,55 @@ void Adafruit_NeoPXL8::setBrightness(uint8_t b) {
 uint8_t Adafruit_NeoPXL8::getBrightness(void) const {
   return brightness - 1; // 1-256 in, 0-255 out
 }
+
+/*--------------------------------------------------------------------------
+Some notes on How It Works (and doesn't work):
+
+SAMD21 DMA has no path to the GPIO PORT registers.  Instead, one of the
+DMA-capable peripherals is exploited for byte-wide concurrent output
+(specifically the TCC0 pattern generator, which is normally used for
+motor control or some such).
+
+To issue 8 bits in parallel, all bytes of NeoPixel data must be "turned
+sideways" in RAM so all the bit 7's are issued concurrently, then all
+the bit 6's, bit 5's and so forth.  Not a problem, and in fact we use this
+opportunity to remap pins to strips (e.g. any of the 8 pins can be the
+"first" of the pixels in RAM, and so forth, so you can do routing/wiring
+however's easiest).  A timer/counter is used to issue the data at a
+measured rate as required of NeoPixels.
+
+The bad news is that the high and low states at the start/end of each
+NeoPixel bit are also issued this way and need to be part of the DMA
+output buffer, and this incurs a hefty RAM footprint, about 4X the space
+required for the "normal" NeoPixel library (1X for the regular NeoPixel
+buffer which we still use, plus another 3X for the DMA expansion) -- so
+each RGB pixel needs about 12 bytes RAM, or 16 bytes for RGBW pixels.
+The SAMD21 has gobs of RAM so we can kind of get away with this (over
+2,000 RGB pixels across eight 250-pixel strands), though bloaty and
+not optimal.  Also, a uniform 1:3 timing is used for the high/data/low
+states, which doesn't precisely match the NeoPixel datasheet.  It's close
+enough in most cases, but I have seen very occasional glitches on the
+first pixel of each strand.  I'd recommend experimenting with the library
+a bit on a small scale before commiting to any large hardware investment
+around it.
+
+In *theory* it should be possible to get better timing and reduce the RAM
+requirements by using 3 DMA channels -- one to issue the initial 'high'
+logic level, one for the bit states, and one for the 'low' level at the
+end of each bit (the former and latter can be "reused" each time, not
+requiring a copy for every byte out), triggered by the timer overflow and
+two counter-compare matches -- and in fact if you look at Paul Stoffregen's
+OctoWS2811 library (which handles a similar task on somewhat different
+hardware) you'll see that's iexactly what's being done there.
+Unfortunately and for whatever reason, it looks as though the "round-robin"
+DMA arbitration on the SAMD21 doesn't work in combination with timer
+triggers.  I can get a single DMA channel triggered off a timer (as
+currently done in this code), or multiple channels going round-robin at
+full tilt, ignoring the timer.  This means either A) tough beans, that's
+just how it works on this device, or B) I'm doing something incredibly
+dumb, and despite trying just about everything can't figure out round-
+robin arbitration on a beat timer.  If anyone can offer insights there,
+or point to a SAMD21-compatible example, I'd be immensely grateful, as
+it'd reduce the library's RAM requirements by a factor of 2 and we could
+handle even MOAR pixels.
+----------------------------------------------------------------------------*/
