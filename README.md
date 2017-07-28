@@ -26,9 +26,13 @@ Pin 7 alternate is 13
 On the Metro Express and Arduino Zero boards, some of these pins (MOSI, MISO and SCK) are on the 6-pin ICSP header.
 
 Because Feather boards have a pared-down pinout, some of the alternates need to be used. One possible layout might be:
+
 `int8_t pins[] = { 13, 12, 11, 10, 5, SDA, A3, A4 };`
+
 This keeps the Serial1 and SPI peripherals available, but prevents using I2C. A different arrangement would keep I2C free at the expense of one NeoPixel output:
+
 `int8_t pins[] = { 13, 12, 11, 10, 5, -1, A3, A4 };`
+
 The '-1' for a pin assignment disables that NeoPixel output (so this would have only 7 concurrent strands), but those pixels still take up memory and positions among the pixel indices.
 
 Pin MUXing is a hairy thing and over time we'll try to build up some ready-to-use examples for different boards and peripherals. You can also try picking your way through the SAMD21 datasheet or the NeoPXL8 source code for pin/peripheral assignments.
