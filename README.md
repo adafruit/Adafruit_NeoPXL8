@@ -10,6 +10,10 @@ Constructor is slightly different from Adafruit_NeoPixel. Rather than a pin numb
 
 The first argument, strand length, applies to EACH strand. Total NeoPixel count is 8X this. Pixels are addressed (via setPixelColor()) as a single sequential strand. Supposing NUM_LED is 20, the first physical strand would be pixels 0-19, second strand is 20-39, third is 40-59 and so forth, up to pixel #159 on the eighth strand.
 
+## Logic Levels
+
+The SAMD21 is a 3.3V device, while NeoPixels ideally want 5V logic.  One solution is a logic level converter such as the 74HCT125N.  Alternately, just powering the NeoPixels from a slightly lower voltage (e.g. 4.5V) is sometimes all it takes!
+
 ## Pin MUXing
 
 Because this library relies on the SAMD21's TCC0 "pattern generator" peripheral, outputs can only be assigned to very specific pins. Fortunately most provide alternate options if the default layout doesn't meet your needs (e.g. on Feather boards).

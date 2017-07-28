@@ -4,6 +4,8 @@
 
 // Also requires LATEST Adafruit_NeoPixel and Adafruit_ZeroDMA libraries.
 
+// May require a logic level shifter (e.g. 75HCT245) for 5V pixels.
+
 #include <Adafruit_NeoPXL8.h>
 
 #define NUM_LED 64 // Total number of pixels is 8X this!
