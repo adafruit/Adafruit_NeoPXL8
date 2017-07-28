@@ -11,24 +11,23 @@ class Adafruit_NeoPXL8 : public Adafruit_NeoPixel {
   Adafruit_NeoPXL8(uint16_t n, uint8_t *p=NULL, neoPixelType t=NEO_GRB);
   ~Adafruit_NeoPXL8();
 
-  boolean     begin(void),
-              canShow(void),
-              canStage(void);
-  void        show(),
-              stage(),
-              setBrightness(uint8_t);
-  uint8_t     getBrightness() const;
+  boolean          begin(void),
+                   canStage(void),
+                   canShow(void);
+  void             show(),
+                   stage(),
+                   setBrightness(uint8_t);
+  uint8_t          getBrightness() const;
 
  protected:
 
   Adafruit_ZeroDMA dma;
-  uint8_t          mux[5],
-                   pins[8],
-                   bitmask[8],
-                  *dmaBuf,
-                   xferComplete;
+  uint8_t          pins[8],     // Pin list for 8 NeoPixel strips
+                   bitmask[8],  // Pattern generator bitmask for each pin
+                  *dmaBuf;      // Allocated buffer for pixel data + extra
+  uint32_t        *alignedAddr; // long-aligned ptr into dmaBuf (see code)
   uint16_t         brightness;
-  boolean          staged;
+  boolean          staged;      // If set, data is ready for DMA trigger
 };
 
 #endif // _ADAFRUIT_NEOPXL8_H_
