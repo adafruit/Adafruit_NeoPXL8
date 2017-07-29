@@ -8,7 +8,7 @@ class Adafruit_NeoPXL8 : public Adafruit_NeoPixel {
 
  public:
 
-  Adafruit_NeoPXL8(uint16_t n, uint8_t *p=NULL, neoPixelType t=NEO_GRB);
+  Adafruit_NeoPXL8(uint16_t n, int8_t *p=NULL, neoPixelType t=NEO_GRB);
   ~Adafruit_NeoPXL8();
 
   boolean          begin(void),
