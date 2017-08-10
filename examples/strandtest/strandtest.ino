@@ -12,9 +12,13 @@
 
 // Second argument to constructor is an 8-byte pin list,
 // or pass NULL to use pins 0-7 on Metro Express, Arduino Zero, etc.
-// Pin mapping on Feather and other boards is fussy and will require
-// some documentation.
 Adafruit_NeoPXL8 strip(NUM_LED, NULL, NEO_GRB);
+// Here's an alternate pinout that could work on Feather M0:
+//int8_t pins[8] = { PIN_SERIAL1_RX, PIN_SERIAL1_TX, MISO, 13, 5, SDA, A4, A3 };
+//Adafruit_NeoPXL8 strip(NUM_LED, pins, NEO_GRB);
+// Or, if those collide with vital peripherals, alternates could include:
+//int8_t pins[8] = { 12, 10, 11, 13, SCK, MOSI, A4, A3 };
+//Adafruit_NeoPXL8 strip(NUM_LED, pins, NEO_GRB);
 
 void setup() {
   strip.begin();
