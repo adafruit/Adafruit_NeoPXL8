@@ -22,11 +22,16 @@ so this is not a 100% drop-in replacement for all NeoPixel code right now.
 #include "Adafruit_NeoPXL8.h"
 #include "wiring_private.h" // pinPeripheral() function
 
+// 300 uS latch time supports current WS2812B LEDs.  Earlier generations
+// and 'compatible' devices work at 50 uS, feel free to change this if you
+// know for certain your LEDs are compatible.
+#define LATCHTIME 300
+
 // DMA transfer using TCC0 as beat clock seems to stutter on the first
 // few elements out, which can botch the delicate NeoPixel timing.
 // A few initial zero bytes are issued to give DMA time to stabilize.
 // The number of bytes here was determined empirically.
-#define EXTRASTARTBYTES 21
+#define EXTRASTARTBYTES 22
 // Not a perfect solution and you might still see infrequent glitches,
 // especially on the first pixel of a strand.  Often this is just a matter
 // of logic levels -- SAMD21 is a 3.3V device, while NeoPixels want 5V
@@ -234,7 +239,8 @@ void Adafruit_NeoPXL8::show(void) {
   dma.start_transfer_job();
   staged  = false;
   sending = 1;
-  while((micros() - lastBitTime) <= 300); // Wait for latch
+  // Wait for latch, factor in EXTRASTARTBYTES transmission time too!
+  while((micros() - lastBitTime) <= (LATCHTIME - (EXTRASTARTBYTES * 5 / 4)));
   dma.trigger_transfer();
 }
 
