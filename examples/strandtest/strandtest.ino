@@ -1,38 +1,43 @@
-// This is a single NeoPixel example for the Adafruit_NeoPXL8 library,
-// tests LEDs and helps identify which output pin to which strip.
-// For more complete examples of NeoPixel operations, see the examples
+// Example/diagnostic for the Adafruit_NeoPXL8 library.  Each of 8 strands
+// is a distinct color, helps identify which pin goes to which strand.
+// For more complete usage of NeoPixel operations, see the examples
 // included with the 'regular' Adafruit_NeoPixel library.
 
 // Also requires LATEST Adafruit_NeoPixel and Adafruit_ZeroDMA libraries.
 
-// May require a logic level shifter (e.g. 75HCT245) for 5V pixels.
+// May require a logic level shifter (e.g. 75HCT245) for 5V pixels,
+// or use NeoPXL8 Featherwing for Adafruit Feather M0 boards.
 
 #include <Adafruit_NeoPXL8.h>
 
-#define NUM_LED 64 // Total number of pixels is 8X this!
+#define NUM_LED 64  // Per strand. Total number of pixels is 8X this!
 
-// Second argument to constructor is an 8-byte pin list,
+// Second argument to constructor is an optional 8-byte pin list,
 // or pass NULL to use pins 0-7 on Metro Express, Arduino Zero, etc.
-Adafruit_NeoPXL8 strip(NUM_LED, NULL, NEO_GRB);
+Adafruit_NeoPXL8 leds(NUM_LED, NULL, NEO_GRB);
 
-// Here's an example pinout that can work on Feather M0.  These are
-// the default connections for the 2x8 header on the NeoPXL8 Featherwing,
+// Here's a pinout that works with the Feather M0.  These are the
+// default connections for the 2x8 header on the NeoPXL8 Featherwing,
 // which is 1:1 compatible with Fadecandy cabling:
 //int8_t pins[8] = { PIN_SERIAL1_RX, PIN_SERIAL1_TX, MISO, 13, 5, SDA, A4, A3 };
-//Adafruit_NeoPXL8 strip(NUM_LED, pins, NEO_GRB);
+//Adafruit_NeoPXL8 leds(NUM_LED, pins, NEO_GRB);
 
 // If using the Featherwing RJ45 connections, the pin order can be
 // reversed if 1:1 compatibility with OctoWS2811 cabling is desired:
 // int8_t pins[8] = { A3, A4, SDA, 5, 13, MISO, PIN_SERIAL1_TX, PIN_SERIAL1_RX };
-// Adafruit_NeoPXL8 strip(NUM_LED, pins, NEO_GRB);
 
-// If any of these collide with vital peripherals, alternates include:
+// 5 pins on the Featherwing have reconfigurable jumpers, in case the
+// default pin connections interfere with a needed peripheral (Serial1,
+// I2C or SPI).  You do NOT need to use all 5 alternates; you can pick
+// and choose as needed!  But if changing all 5, they would be:
 //int8_t pins[8] = { 12, 10, 11, 13, SCK, MOSI, A4, A3 };
-//Adafruit_NeoPXL8 strip(NUM_LED, pins, NEO_GRB);
+
+// And again, reverse the order for OctoWS2811-compatible cabling:
+// int8_t pins[8] = { A3, A4, MOSI, SCK, 13, 11, 10, 12 };
 
 void setup() {
-  strip.begin();
-  strip.setBrightness(32);
+  leds.begin();
+  leds.setBrightness(32);
 }
 
 uint8_t frame = 0;
@@ -40,10 +45,10 @@ uint8_t frame = 0;
 void loop() {
   for(uint8_t r=0; r<8; r++) { // For each row...
     for(int p=0; p<NUM_LED; p++) { // For each pixel of row...
-      strip.setPixelColor(r * NUM_LED + p, rain(r, p));
+      leds.setPixelColor(r * NUM_LED + p, rain(r, p));
     }
   }
-  strip.show();
+  leds.show();
   frame++;
 }
 
