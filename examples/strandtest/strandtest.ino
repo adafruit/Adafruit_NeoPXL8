@@ -14,10 +14,19 @@
 // Second argument to constructor is an 8-byte pin list,
 // or pass NULL to use pins 0-7 on Metro Express, Arduino Zero, etc.
 Adafruit_NeoPXL8 strip(NUM_LED, NULL, NEO_GRB);
-// Here's an alternate pinout that could work on Feather M0:
+
+// Here's an example pinout that can work on Feather M0.  These are
+// the default connections for the 2x8 header on the NeoPXL8 Featherwing,
+// which is 1:1 compatible with Fadecandy cabling:
 //int8_t pins[8] = { PIN_SERIAL1_RX, PIN_SERIAL1_TX, MISO, 13, 5, SDA, A4, A3 };
 //Adafruit_NeoPXL8 strip(NUM_LED, pins, NEO_GRB);
-// Or, if those collide with vital peripherals, alternates could include:
+
+// If using the Featherwing RJ45 connections, the pin order can be
+// reversed if 1:1 compatibility with OctoWS2811 cabling is desired:
+// int8_t pins[8] = { A3, A4, SDA, 5, 13, MISO, PIN_SERIAL1_TX, PIN_SERIAL1_RX };
+// Adafruit_NeoPXL8 strip(NUM_LED, pins, NEO_GRB);
+
+// If any of these collide with vital peripherals, alternates include:
 //int8_t pins[8] = { 12, 10, 11, 13, SCK, MOSI, A4, A3 };
 //Adafruit_NeoPXL8 strip(NUM_LED, pins, NEO_GRB);
 
@@ -52,7 +61,7 @@ uint8_t colors[8][3] = { // RGB colors for the 8 rows...
 // Gamma-correction table improves the appearance of midrange colors
 #define _GAMMA_ 2.6
 const int _GBASE_ = __COUNTER__ + 1; // Index of 1st __COUNTER__ ref below
-#define _G1_ pow((__COUNTER__ - _GBASE_) / 255.0, _GAMMA_) * 255.0 + 0.5,
+#define _G1_ (uint8_t)(pow((__COUNTER__ - _GBASE_) / 255.0, _GAMMA_) * 255.0 + 0.5),
 #define _G2_ _G1_ _G1_ _G1_ _G1_ _G1_ _G1_ _G1_ _G1_ // Expands to 8 lines
 #define _G3_ _G2_ _G2_ _G2_ _G2_ _G2_ _G2_ _G2_ _G2_ // Expands to 64 lines
 const uint8_t gamma8[] = { _G3_ _G3_ _G3_ _G3_ };    // 256 lines
