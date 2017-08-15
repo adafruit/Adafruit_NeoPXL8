@@ -215,17 +215,23 @@ void Adafruit_NeoPXL8::stage(void) {
   }
 
   for(uint8_t b=0; b<8; b++) { // For each output pin 0-7
-    if(bitmask[b]) { // Enabled?
+    uint8_t bb = bitmask[b];
+    if(bb) { // Enabled?
       uint8_t *src = &pixels[b * bytesPerRow]; // Start of row data
       uint8_t *dst = &((uint8_t *)alignedAddr)[1];
       for(i=0; i<bytesPerRow; i++) { // Each byte in row...
         // Brightness scaling doesn't require shift down,
         // we'll just pluck from bits 15-8...
         uint16_t value = *src++ * brightness;
-        for(uint16_t foo=0x8000; foo >= 0x0100; foo >>= 1) {
-          if(value & foo) *dst |= bitmask[b];
-          dst += 3;
-        }
+        if(value & 0x8000) dst[ 0] |= bb;
+        if(value & 0x4000) dst[ 3] |= bb;
+        if(value & 0x2000) dst[ 6] |= bb;
+        if(value & 0x1000) dst[ 9] |= bb;
+        if(value & 0x0800) dst[12] |= bb;
+        if(value & 0x0400) dst[15] |= bb;
+        if(value & 0x0200) dst[18] |= bb;
+        if(value & 0x0100) dst[21] |= bb;
+        dst += 24;
       }
     }
   }
