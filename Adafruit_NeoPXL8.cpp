@@ -26,7 +26,7 @@ so this is not a 100% drop-in replacement for all NeoPixel code right now.
 // few elements out, which can botch the delicate NeoPixel timing.
 // A few initial zero bytes are issued to give DMA time to stabilize.
 // The number of bytes here was determined empirically.
-#define EXTRASTARTBYTES 19
+#define EXTRASTARTBYTES 20
 // Not a perfect solution and you might still see infrequent glitches,
 // especially on the first pixel of a strand.  Often this is just a matter
 // of logic levels -- SAMD21 is a 3.3V device, while NeoPixels want 5V
