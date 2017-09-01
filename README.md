@@ -1,6 +1,6 @@
 # Adafruit_NeoPXL8
 DMA-driven 8-way concurrent NeoPixel driver for SAMD21 (M0+) boards.
-Requires latest Adafruit_NeoPixel and Adafruit_ZeroDMA libraries.
+Requires latest Adafruit_NeoPixel, Adafruit_ZeroDMA and Adafruit_ASFcore libraries.
 
 (Pronounced "NeoPixelate")
 
