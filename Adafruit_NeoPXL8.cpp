@@ -114,7 +114,7 @@ static uint8_t configurePin(uint8_t pin) {
 
 // Called at end of DMA transfer.  Clears 'sending' flag and notes
 // start-of-NeoPixel-latch time.
-static void dmaCallback(struct dma_resource* const resource) {
+static void dmaCallback(Adafruit_ZeroDMA* dma) {
   lastBitTime = micros();
   sending     = 0;
 }
@@ -127,8 +127,8 @@ boolean Adafruit_NeoPXL8::begin(void) {
     if((dmaBuf = (uint8_t *)malloc(bytesTotal))) {
       int i;
 
-      dma.configure_peripheraltrigger(TCC0_DMAC_ID_OVF);
-      dma.configure_triggeraction(DMA_TRIGGER_ACTON_BEAT);
+      dma.setTrigger(TCC0_DMAC_ID_OVF);
+      dma.setAction(DMA_TRIGGER_ACTON_BEAT);
 
       // Get address of first byte that's on a 32-bit boundary
       // and at least EXTRASTARTBYTES into dmaBuf...
@@ -139,17 +139,15 @@ boolean Adafruit_NeoPXL8::begin(void) {
 
       uint8_t *dst = &((uint8_t *)(&TCC0->PATT))[1]; // PAT.vec.PGV
       dma.allocate();
-      dma.setup_transfer_descriptor(
+      dma.addDescriptor(
         startAddr,          // source
         dst,                // destination
         bytesTotal - 3,     // count (don't include long-alignment bytes!)
         DMA_BEAT_SIZE_BYTE, // size per
         true,               // increment source
         false);             // don't increment destination
-      dma.add_descriptor();
 
-      dma.register_callback(dmaCallback);
-      dma.enable_callback();
+      dma.setCallback(dmaCallback);
 
       // Enable GCLK for TCC0
       GCLK->CLKCTRL.reg = (uint16_t)(GCLK_CLKCTRL_CLKEN |
@@ -242,12 +240,12 @@ void Adafruit_NeoPXL8::stage(void) {
 void Adafruit_NeoPXL8::show(void) {
   while(sending);      // Wait for DMA callback
   if(!staged) stage(); // Convert data
-  dma.start_transfer_job();
+  dma.startJob();
   staged  = false;
   sending = 1;
   // Wait for latch, factor in EXTRASTARTBYTES transmission time too!
   while((micros() - lastBitTime) <= (LATCHTIME - (EXTRASTARTBYTES * 5 / 4)));
-  dma.trigger_transfer();
+  dma.trigger();
 }
 
 // Returns true if DMA transfer is NOT presently occurring.
