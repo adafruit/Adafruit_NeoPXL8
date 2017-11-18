@@ -66,6 +66,32 @@ static struct {
   uint8_t   wo;         // TCC0/WO# (0-7)
   EPioType  peripheral; // Peripheral to select for TCC0 out
 } tcc0pinMap[] = {
+#ifdef __SAMD51__
+  { PORTA,  8, 0, PIO_TIMER_ALT },
+  { PORTA,  9, 1, PIO_TIMER_ALT },
+  { PORTA, 10, 2, PIO_TIMER_ALT },
+  { PORTA, 11, 3, PIO_TIMER_ALT },
+  { PORTA, 12, 6, PIO_TIMER_ALT },
+  { PORTA, 13, 7, PIO_TIMER_ALT },
+  { PORTA, 16, 4, PIO_COM       }, // COM = Peripheral G
+  { PORTA, 17, 5, PIO_COM       },
+  { PORTA, 18, 6, PIO_COM       },
+  { PORTA, 19, 7, PIO_COM       },
+  { PORTA, 20, 0, PIO_COM       },
+  { PORTA, 21, 1, PIO_COM       },
+  { PORTA, 22, 2, PIO_COM       },
+  { PORTA, 23, 3, PIO_COM       },
+  { PORTB, 10, 4, PIO_TIMER_ALT },
+  { PORTB, 11, 5, PIO_TIMER_ALT },
+  { PORTB, 12, 0, PIO_COM       },
+  { PORTB, 13, 1, PIO_COM       },
+  { PORTB, 14, 2, PIO_COM       },
+  { PORTB, 15, 3, PIO_COM       },
+  { PORTB, 16, 4, PIO_COM       },
+  { PORTB, 17, 5, PIO_COM       },
+  { PORTB, 30, 6, PIO_COM       },
+  { PORTB, 31, 7, PIO_COM       },
+#else
   { PORTA,  4, 0, PIO_TIMER     },
   { PORTA,  5, 1, PIO_TIMER     },
   { PORTA,  8, 0, PIO_TIMER     },
@@ -92,6 +118,7 @@ static struct {
   { PORTB, 17, 5, PIO_TIMER_ALT },
   { PORTB, 30, 0, PIO_TIMER     },
   { PORTB, 31, 1, PIO_TIMER     }
+#endif
 };
 #define PINMAPSIZE (sizeof(tcc0pinMap) / sizeof(tcc0pinMap[0]))
 
@@ -149,27 +176,52 @@ boolean Adafruit_NeoPXL8::begin(void) {
 
       dma.setCallback(dmaCallback);
 
+#ifdef __SAMD51__
+      // Set up generic clock gen 2 as source for TCC0
+      // Datasheet recommends setting GENCTRL register in a single write,
+      // so a temp value is used here to more easily construct a value.
+      GCLK_GENCTRL_Type genctrl;
+      genctrl.bit.SRC      = GCLK_GENCTRL_SRC_DFLL_Val; // 48 MHz source
+      genctrl.bit.GENEN    = 1; // Enable
+      genctrl.bit.OE       = 1;
+      genctrl.bit.DIVSEL   = 0; // Do not divide clock source
+      genctrl.bit.DIV      = 0;
+      GCLK->GENCTRL[2].reg = genctrl.reg;
+      while(GCLK->SYNCBUSY.bit.GENCTRL1 == 1);
+
+      GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN = 0;
+      while(GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN); // Wait for disable
+      GCLK_PCHCTRL_Type pchctrl;
+      pchctrl.bit.GEN                 = GCLK_PCHCTRL_GEN_GCLK2_Val;
+      pchctrl.bit.CHEN                = 1;
+      GCLK->PCHCTRL[TCC0_GCLK_ID].reg = pchctrl.reg;
+      while(!GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN); // Wait for enable
+#else
       // Enable GCLK for TCC0
       GCLK->CLKCTRL.reg = (uint16_t)(GCLK_CLKCTRL_CLKEN |
         GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID(GCM_TCC0_TCC1));
       while(GCLK->STATUS.bit.SYNCBUSY == 1);
+#endif
 
       // Disable TCC before configuring it
       TCC0->CTRLA.bit.ENABLE = 0;
-      while(TCC0->SYNCBUSY.reg & TCC_SYNCBUSY_MASK);
+      while(TCC0->SYNCBUSY.bit.ENABLE);
 
-      TCC0->CTRLA.reg = TCC_CTRLA_PRESCALER_DIV1; // 1:1 Prescale
-      while(TCC0->SYNCBUSY.reg & TCC_SYNCBUSY_MASK);
+      TCC0->CTRLA.bit.PRESCALER = TCC_CTRLA_PRESCALER_DIV1_Val; // 1:1 Prescale
 
       TCC0->WAVE.bit.WAVEGEN = TCC_WAVE_WAVEGEN_NPWM_Val; // Normal PWM mode
-      while(TCC0->SYNCBUSY.reg & TCC_SYNCBUSY_MASK);
+      while(TCC0->SYNCBUSY.bit.WAVE);
 
       TCC0->CC[0].reg = 0; // No PWM out
-      while(TCC0->SYNCBUSY.reg & TCC_SYNCBUSY_MASK);
+      while(TCC0->SYNCBUSY.bit.CC0);
 
       // 2.4 GHz clock: 3 DMA xfers per NeoPixel bit = 800 KHz
+#ifdef __SAMD51__
+      TCC0->PER.reg = ((48000000 + 1200000)/ 2400000) - 1;
+#else
       TCC0->PER.reg = ((F_CPU + 1200000)/ 2400000) - 1;
-      while(TCC0->SYNCBUSY.reg & TCC_SYNCBUSY_MASK);
+#endif
+      while(TCC0->SYNCBUSY.bit.PER);
 
       memset(bitmask, 0, sizeof(bitmask));
       uint8_t enableMask = 0x00;       // Bitmask of pattern gen outputs
@@ -180,7 +232,7 @@ boolean Adafruit_NeoPXL8::begin(void) {
       TCC0->PATT.vec.PGE = enableMask; // Enable pattern outputs
 
       TCC0->CTRLA.bit.ENABLE = 1;
-      while(TCC0->SYNCBUSY.reg & TCC_SYNCBUSY_MASK);
+      while(TCC0->SYNCBUSY.bit.ENABLE);
 
       return true; // Success!
     }
