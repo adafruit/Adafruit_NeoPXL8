@@ -229,10 +229,12 @@ boolean Adafruit_NeoPXL8::begin(void) {
       memset(bitmask, 0, sizeof(bitmask));
       uint8_t enableMask = 0x00;       // Bitmask of pattern gen outputs
       for(i=0; i<8; i++) {
-        if(bitmask[i] = configurePin(pins[i])) enableMask |= 1 << i;
+        if(bitmask[i] = configurePin(pins[i])) enableMask |= bitmask[i];
       }
       TCC0->PATT.vec.PGV = 0;          // Set all pattern outputs to 0
+      while(TCC0->SYNCBUSY.bit.PATT);
       TCC0->PATT.vec.PGE = enableMask; // Enable pattern outputs
+      while(TCC0->SYNCBUSY.bit.PATT);
 
       TCC0->CTRLA.bit.ENABLE = 1;
       while(TCC0->SYNCBUSY.bit.ENABLE);
