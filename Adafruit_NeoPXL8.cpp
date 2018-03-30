@@ -69,31 +69,31 @@ static struct {
   EPioType  peripheral; // Peripheral to select for TCC0 out
 } tcc0pinMap[] = {
 #ifdef __SAMD51__
-  { PORTA,  8, 0, PIO_TIMER_ALT }, // FLASH_IO0 on Metro M4 prototype
+  { PORTA,  8, 0, PIO_TIMER_ALT }, // FLASH_IO0 on Metro M4
   { PORTA,  9, 1, PIO_TIMER_ALT }, // FLASH_IO1
   { PORTA, 10, 2, PIO_TIMER_ALT }, // FLASH_IO2
   { PORTA, 11, 3, PIO_TIMER_ALT }, // FLASH_IO3
-  { PORTA, 12, 6, PIO_TIMER_ALT }, // MOSI   PCC-DEN1
-  { PORTA, 13, 7, PIO_TIMER_ALT }, // SCK    PCC-DEN2
-//  PORTA  14  (no TCC function)      D7     PCC-CLK
-  { PORTA, 16, 4, PIO_COM       }, // D8     PCC00  (PIO_COM = Peripheral G?)
-  { PORTA, 17, 5, PIO_COM       }, // D9     PCC01
-  { PORTA, 18, 6, PIO_COM       }, // D10    PCC02
-  { PORTA, 19, 7, PIO_COM       }, // D11    PCC03
-  { PORTA, 20, 0, PIO_COM       }, // D12    PCC04
-  { PORTA, 21, 1, PIO_COM       }, // D13    PCC05
-  { PORTA, 22, 2, PIO_COM       }, // D1     PCC06
-  { PORTA, 23, 3, PIO_COM       }, // D0     PCC07
+  { PORTA, 12, 6, PIO_TIMER_ALT }, // MOSI   PCC/DEN1  NOT WORKING?
+  { PORTA, 13, 7, PIO_TIMER_ALT }, // SCK    PCC/DEN2
+//  PORTA  14  (no TCC0 function)     MISO   PCC/CLK (PIO_COM = peripheral G)
+  { PORTA, 16, 4, PIO_TCC_PDEC  }, // D13    PCC[0]
+  { PORTA, 17, 5, PIO_TCC_PDEC  }, // D12    PCC[1]
+  { PORTA, 18, 6, PIO_TCC_PDEC  }, // D10    PCC[2]
+  { PORTA, 19, 7, PIO_TCC_PDEC  }, // D11    PCC[3]
+  { PORTA, 20, 0, PIO_TCC_PDEC  }, // D9     PCC[4]
+  { PORTA, 21, 1, PIO_TCC_PDEC  }, // D8     PCC[5]
+  { PORTA, 22, 2, PIO_TCC_PDEC  }, // D0     PCC[6]
+  { PORTA, 23, 3, PIO_TCC_PDEC  }, // D1     PCC[7]
   { PORTB, 10, 4, PIO_TIMER_ALT }, // FLASH_SCK
   { PORTB, 11, 5, PIO_TIMER_ALT }, // FLASH_CS
-  { PORTB, 12, 0, PIO_COM       }, // D3
-  { PORTB, 13, 1, PIO_COM       }, // D4
-  { PORTB, 14, 2, PIO_COM       }, // D5     PCC08
-  { PORTB, 15, 3, PIO_COM       }, // D6     PCC09
-  { PORTB, 16, 4, PIO_COM       }, // NC
-  { PORTB, 17, 5, PIO_COM       }, // NEOPIX
-  { PORTB, 30, 6, PIO_COM       }, // NC
-  { PORTB, 31, 7, PIO_COM       }, // NC
+  { PORTB, 12, 0, PIO_TCC_PDEC  }, // D7
+  { PORTB, 13, 1, PIO_TCC_PDEC  }, // D4
+  { PORTB, 14, 2, PIO_TCC_PDEC  }, // D5     PCC[8]
+  { PORTB, 15, 3, PIO_TCC_PDEC  }, // D6     PCC[9]
+  { PORTB, 16, 4, PIO_TCC_PDEC  }, // D3
+  { PORTB, 17, 5, PIO_TCC_PDEC  }, // D2
+  { PORTB, 30, 6, PIO_TCC_PDEC  }, // SWO
+  { PORTB, 31, 7, PIO_TCC_PDEC  }, // NC
 #else
   { PORTA,  4, 0, PIO_TIMER     }, // A3 on Metro M0
   { PORTA,  5, 1, PIO_TIMER     }, // A4
