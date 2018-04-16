@@ -41,14 +41,16 @@ so this is not a 100% drop-in replacement for all NeoPixel code right now.
 // match the NeoPixel spec)...usually only affects the 1st pixel,
 // subsequent pixels OK due to signal reshaping through the 1st.
 
-static const    int8_t   defaultPins[] = { 0,1,2,3,4,5,6,7 };
-static volatile boolean  sending = 0; // Set while DMA transfer is active
-static volatile uint32_t lastBitTime; // micros() when last bit issued
+static const int8_t defaultPins[] = { 0,1,2,3,4,5,6,7 };
+static volatile boolean  sending[2] = {0}; // Set while DMA transfer is active
+static volatile uint32_t lastBitTime[2]; // micros() when last bit issued
+
 
 Adafruit_NeoPXL8::Adafruit_NeoPXL8(
-  uint16_t n, int8_t *p, neoPixelType t) : Adafruit_NeoPixel(n * 8, -1, t),
-  brightness(256), dmaBuf(NULL) {
+  uint16_t n, int8_t *p, neoPixelType t, uint8_t tn) :
+  Adafruit_NeoPixel(n * 8, -1, t), brightness(256), dmaBuf(NULL) {
   memcpy(pins, p ? p : defaultPins, sizeof(pins));
+  tcc = tn;
 }
 
 Adafruit_NeoPXL8::~Adafruit_NeoPXL8() {
@@ -62,13 +64,15 @@ Adafruit_NeoPXL8::~Adafruit_NeoPXL8() {
 // PORT/pin combos are NOT present on some dev boards or SAMD21 variants.
 // If a pin is NOT in this list, it just means there's no TCC0/W[n] func
 // there, but it may still exist and have other peripheral functions.
-static struct {
+typedef struct {
   EPortType port;       // PORTA|PORTB
   uint8_t   bit;        // Port bit (0-31)
   uint8_t   wo;         // TCC0/WO# (0-7)
   EPioType  peripheral; // Peripheral to select for TCC0 out
-} tcc0pinMap[] = {
+} pinMap;
+
 #ifdef __SAMD51__
+pinMap tcc0pinMap[] = {
   { PORTA,  8, 0, PIO_TIMER_ALT }, // FLASH_IO0 on Metro M4
   { PORTA,  9, 1, PIO_TIMER_ALT }, // FLASH_IO1
   { PORTA, 10, 2, PIO_TIMER_ALT }, // FLASH_IO2
@@ -94,7 +98,28 @@ static struct {
   { PORTB, 17, 5, PIO_TCC_PDEC  }, // D2
   { PORTB, 30, 6, PIO_TCC_PDEC  }, // SWO
   { PORTB, 31, 7, PIO_TCC_PDEC  }, // NC
+}, tcc1pinMap[] = {
+  { PORTA,  8, 4, PIO_TCC_PDEC  }, // FLASH_IO0 on Metro M4
+  { PORTA,  9, 5, PIO_TCC_PDEC  }, // FLASH_IO1
+  { PORTA, 10, 6, PIO_TCC_PDEC  }, // FLASH_IO2
+  { PORTA, 11, 7, PIO_TCC_PDEC  }, // FLASH_IO3
+  { PORTA, 12, 2, PIO_TCC_PDEC  }, // MOSI
+  { PORTA, 13, 3, PIO_TCC_PDEC  }, // SCK
+  { PORTA, 14, 2, PIO_TCC_PDEC  }, // MISO
+  { PORTA, 15, 3, PIO_TCC_PDEC  }, // NC
+  { PORTA, 16, 0, PIO_TIMER_ALT }, // 13
+  { PORTA, 17, 1, PIO_TIMER_ALT }, // 12
+  { PORTA, 18, 2, PIO_TIMER_ALT }, // 10
+  { PORTA, 19, 3, PIO_TIMER_ALT }, // 11
+  { PORTA, 20, 4, PIO_TIMER_ALT }, // 9
+  { PORTA, 21, 5, PIO_TIMER_ALT }, // 8
+  { PORTA, 22, 6, PIO_TIMER_ALT }, // 1
+  { PORTA, 23, 7, PIO_TIMER_ALT }, // 0
+  { PORTB, 10, 0, PIO_TCC_PDEC  }, // FLASH_SCK
+  { PORTB, 11, 1, PIO_TCC_PDEC  }, // FLASH_CS
+};
 #else
+pinMap tcc0pinMap[] = {
   { PORTA,  4, 0, PIO_TIMER     }, // A3 on Metro M0
   { PORTA,  5, 1, PIO_TIMER     }, // A4
   { PORTA,  8, 0, PIO_TIMER     }, // D4
@@ -118,24 +143,46 @@ static struct {
   { PORTB, 12, 6, PIO_TIMER_ALT }, // NC
   { PORTB, 13, 7, PIO_TIMER_ALT }, // NC
   { PORTB, 16, 4, PIO_TIMER_ALT }, // NC
-  { PORTB, 17, 5, PIO_TIMER_ALT }, // NC
+  { PORTB, 17, 5, PIO_TIMER_ALT }, // NEOPIX
   { PORTB, 30, 0, PIO_TIMER     }, // NC
   { PORTB, 31, 1, PIO_TIMER     }  // NC
-#endif
 };
+#endif
+
 #define PINMAPSIZE (sizeof(tcc0pinMap) / sizeof(tcc0pinMap[0]))
+
+#ifdef __SAMD51__
+#define PINMAP1SIZE (sizeof(tcc1pinMap) / sizeof(tcc1pinMap[0]))
+#endif
 
 // Given a pin number, locate corresponding entry in the pin map table
 // above, configure as a pattern generator output and return bitmask
 // for later data conversion (returns 0 if invalid pin).
-static uint8_t configurePin(uint8_t pin) {
-  if((pin >= 0) && (pin < PINS_COUNT)) {
+static uint8_t configurePin(uint8_t tcc, uint8_t pin) {
+//  if((pin >= 0) && (pin < PINS_COUNT)) {
+  if(pin >= 0) {
     EPortType port = g_APinDescription[pin].ulPort;
     uint8_t   bit  = g_APinDescription[pin].ulPin;
+#ifdef __SAMD51__
+    uint8_t mapsize = tcc ? PINMAP1SIZE : PINMAPSIZE;
+    pinMap *pm = tcc ? tcc1pinMap : tcc0pinMap;
+    for(uint8_t i=0; i<mapsize; i++) {
+#else
+    pinMap *pm = tcc0pinMap;
     for(uint8_t i=0; i<PINMAPSIZE; i++) {
-      if((port == tcc0pinMap[i].port) && (bit == tcc0pinMap[i].bit)) {
-        pinPeripheral(pin, tcc0pinMap[i].peripheral);
-        return (1 << tcc0pinMap[i].wo);
+#endif
+      if((port == pm[i].port) && (bit == pm[i].bit)) {
+#if 0
+Serial.print(tcc);
+Serial.write(' ');
+Serial.print(pm[i].port);
+Serial.write(' ');
+Serial.print(pm[i].bit);
+Serial.write(' ');
+Serial.println(pm[i].wo);
+#endif
+        pinPeripheral(pin, pm[i].peripheral);
+        return (1 << pm[i].wo);
       }
     }
   }
@@ -144,9 +191,14 @@ static uint8_t configurePin(uint8_t pin) {
 
 // Called at end of DMA transfer.  Clears 'sending' flag and notes
 // start-of-NeoPixel-latch time.
-static void dmaCallback(Adafruit_ZeroDMA* dma) {
-  lastBitTime = micros();
-  sending     = 0;
+static void dmaCallback0(Adafruit_ZeroDMA* dma) {
+  lastBitTime[0] = micros();
+  sending[0]     = 0;
+}
+
+static void dmaCallback1(Adafruit_ZeroDMA* dma) {
+  lastBitTime[1] = micros();
+  sending[1]     = 0;
 }
 
 boolean Adafruit_NeoPXL8::begin(void) {
@@ -157,7 +209,11 @@ boolean Adafruit_NeoPXL8::begin(void) {
     if((dmaBuf = (uint8_t *)malloc(bytesTotal))) {
       int i;
 
+#ifdef __SAMD51__
+      dma.setTrigger(tcc ? TCC1_DMAC_ID_OVF : TCC0_DMAC_ID_OVF);
+#else
       dma.setTrigger(TCC0_DMAC_ID_OVF);
+#endif
       dma.setAction(DMA_TRIGGER_ACTON_BEAT);
 
       // Get address of first byte that's on a 32-bit boundary
@@ -167,7 +223,13 @@ boolean Adafruit_NeoPXL8::begin(void) {
       uint8_t *startAddr = (uint8_t *)alignedAddr - EXTRASTARTBYTES;
       memset(startAddr, 0, EXTRASTARTBYTES); // Initialize start with zeros
 
+#ifdef __SAMD51__
+      uint8_t *dst = tcc ?
+        &((uint8_t *)(&TCC1->PATT))[1] : // PAT.vec.PGV
+        &((uint8_t *)(&TCC0->PATT))[1];
+#else
       uint8_t *dst = &((uint8_t *)(&TCC0->PATT))[1]; // PAT.vec.PGV
+#endif
       dma.allocate();
       dma.addDescriptor(
         startAddr,          // source
@@ -177,7 +239,11 @@ boolean Adafruit_NeoPXL8::begin(void) {
         true,               // increment source
         false);             // don't increment destination
 
-      dma.setCallback(dmaCallback);
+#ifdef __SAMD51__
+      dma.setCallback(tcc ? dmaCallback1 : dmaCallback0);
+#else
+      dma.setCallback(dmaCallback0);
+#endif
 
 #ifdef __SAMD51__
       // Set up generic clock gen 2 as source for TCC0
@@ -192,19 +258,88 @@ boolean Adafruit_NeoPXL8::begin(void) {
       GCLK->GENCTRL[2].reg = genctrl.reg;
       while(GCLK->SYNCBUSY.bit.GENCTRL1 == 1);
 
-      GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN = 0;
-      while(GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN); // Wait for disable
-      GCLK_PCHCTRL_Type pchctrl;
-      pchctrl.bit.GEN                 = GCLK_PCHCTRL_GEN_GCLK2_Val;
-      pchctrl.bit.CHEN                = 1;
-      GCLK->PCHCTRL[TCC0_GCLK_ID].reg = pchctrl.reg;
-      while(!GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN); // Wait for enable
+      if(tcc) {
+        GCLK->PCHCTRL[TCC1_GCLK_ID].bit.CHEN = 0;
+        while(GCLK->PCHCTRL[TCC1_GCLK_ID].bit.CHEN); // Wait for disable
+        GCLK_PCHCTRL_Type pchctrl;
+        pchctrl.bit.GEN                 = GCLK_PCHCTRL_GEN_GCLK2_Val;
+        pchctrl.bit.CHEN                = 1;
+        GCLK->PCHCTRL[TCC1_GCLK_ID].reg = pchctrl.reg;
+        while(!GCLK->PCHCTRL[TCC1_GCLK_ID].bit.CHEN); // Wait for enable
+
+        // Disable TCC before configuring it
+        TCC1->CTRLA.bit.ENABLE = 0;
+        while(TCC1->SYNCBUSY.bit.ENABLE);
+
+        TCC1->CTRLA.bit.PRESCALER = TCC_CTRLA_PRESCALER_DIV1_Val; // 1:1 Scale
+
+        TCC1->WAVE.bit.WAVEGEN = TCC_WAVE_WAVEGEN_NPWM_Val; // Normal PWM mode
+        while(TCC1->SYNCBUSY.bit.WAVE);
+
+        TCC1->CC[0].reg = 0; // No PWM out
+        while(TCC1->SYNCBUSY.bit.CC0);
+
+        // 2.4 GHz clock: 3 DMA xfers per NeoPixel bit = 800 KHz
+        TCC1->PER.reg = ((48000000 + 1200000)/ 2400000) - 1;
+        while(TCC1->SYNCBUSY.bit.PER);
+
+        memset(bitmask, 0, sizeof(bitmask));
+        uint8_t enableMask = 0x00;       // Bitmask of pattern gen outputs
+        for(i=0; i<8; i++) {
+          if(bitmask[i] = configurePin(tcc, pins[i])) enableMask |= bitmask[i];
+        }
+
+        TCC1->PATT.vec.PGV = 0;          // Set all pattern outputs to 0
+        while(TCC1->SYNCBUSY.bit.PATT);
+        TCC1->PATT.vec.PGE = enableMask; // Enable pattern outputs
+        while(TCC1->SYNCBUSY.bit.PATT);
+
+        TCC1->CTRLA.bit.ENABLE = 1;
+        while(TCC1->SYNCBUSY.bit.ENABLE);
+      } else {
+        GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN = 0;
+        while(GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN); // Wait for disable
+        GCLK_PCHCTRL_Type pchctrl;
+        pchctrl.bit.GEN                 = GCLK_PCHCTRL_GEN_GCLK2_Val;
+        pchctrl.bit.CHEN                = 1;
+        GCLK->PCHCTRL[TCC0_GCLK_ID].reg = pchctrl.reg;
+        while(!GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN); // Wait for enable
+
+        // Disable TCC before configuring it
+        TCC0->CTRLA.bit.ENABLE = 0;
+        while(TCC0->SYNCBUSY.bit.ENABLE);
+
+        TCC0->CTRLA.bit.PRESCALER = TCC_CTRLA_PRESCALER_DIV1_Val; // 1:1 Scale
+
+        TCC0->WAVE.bit.WAVEGEN = TCC_WAVE_WAVEGEN_NPWM_Val; // Normal PWM mode
+        while(TCC0->SYNCBUSY.bit.WAVE);
+
+        TCC0->CC[0].reg = 0; // No PWM out
+        while(TCC0->SYNCBUSY.bit.CC0);
+
+        // 2.4 GHz clock: 3 DMA xfers per NeoPixel bit = 800 KHz
+        TCC0->PER.reg = ((48000000 + 1200000)/ 2400000) - 1;
+        while(TCC0->SYNCBUSY.bit.PER);
+
+        memset(bitmask, 0, sizeof(bitmask));
+        uint8_t enableMask = 0x00;       // Bitmask of pattern gen outputs
+        for(i=0; i<8; i++) {
+          if(bitmask[i] = configurePin(tcc, pins[i])) enableMask |= bitmask[i];
+        }
+
+        TCC0->PATT.vec.PGV = 0;          // Set all pattern outputs to 0
+        while(TCC0->SYNCBUSY.bit.PATT);
+        TCC0->PATT.vec.PGE = enableMask; // Enable pattern outputs
+        while(TCC0->SYNCBUSY.bit.PATT);
+
+        TCC0->CTRLA.bit.ENABLE = 1;
+        while(TCC0->SYNCBUSY.bit.ENABLE);
+      }
 #else
       // Enable GCLK for TCC0
       GCLK->CLKCTRL.reg = (uint16_t)(GCLK_CLKCTRL_CLKEN |
         GCLK_CLKCTRL_GEN_GCLK0 | GCLK_CLKCTRL_ID(GCM_TCC0_TCC1));
       while(GCLK->STATUS.bit.SYNCBUSY == 1);
-#endif
 
       // Disable TCC before configuring it
       TCC0->CTRLA.bit.ENABLE = 0;
@@ -219,17 +354,13 @@ boolean Adafruit_NeoPXL8::begin(void) {
       while(TCC0->SYNCBUSY.bit.CC0);
 
       // 2.4 GHz clock: 3 DMA xfers per NeoPixel bit = 800 KHz
-#ifdef __SAMD51__
-      TCC0->PER.reg = ((48000000 + 1200000)/ 2400000) - 1;
-#else
       TCC0->PER.reg = ((F_CPU + 1200000)/ 2400000) - 1;
-#endif
       while(TCC0->SYNCBUSY.bit.PER);
 
       memset(bitmask, 0, sizeof(bitmask));
       uint8_t enableMask = 0x00;       // Bitmask of pattern gen outputs
       for(i=0; i<8; i++) {
-        if(bitmask[i] = configurePin(pins[i])) enableMask |= bitmask[i];
+        if(bitmask[i] = configurePin(tcc, pins[i])) enableMask |= bitmask[i];
       }
       TCC0->PATT.vec.PGV = 0;          // Set all pattern outputs to 0
       while(TCC0->SYNCBUSY.bit.PATT);
@@ -238,6 +369,7 @@ boolean Adafruit_NeoPXL8::begin(void) {
 
       TCC0->CTRLA.bit.ENABLE = 1;
       while(TCC0->SYNCBUSY.bit.ENABLE);
+#endif
 
       return true; // Success!
     }
@@ -295,13 +427,13 @@ void Adafruit_NeoPXL8::stage(void) {
 }
 
 void Adafruit_NeoPXL8::show(void) {
-  while(sending);      // Wait for DMA callback
+  while(sending[tcc]);      // Wait for DMA callback
   if(!staged) stage(); // Convert data
   dma.startJob();
   staged  = false;
-  sending = 1;
+  sending[tcc] = 1;
   // Wait for latch, factor in EXTRASTARTBYTES transmission time too!
-  while((micros() - lastBitTime) <= (LATCHTIME - (EXTRASTARTBYTES * 5 / 4)));
+  while((micros() - lastBitTime[tcc]) <= (LATCHTIME - (EXTRASTARTBYTES * 5 / 4)));
   dma.trigger();
 }
 
@@ -316,13 +448,13 @@ void Adafruit_NeoPXL8::show(void) {
 // transmitting, rather than being done at the beginning of the show()
 // function (the staging conversion isn't entirely deterministic).
 boolean Adafruit_NeoPXL8::canStage(void) {
-  return !sending;
+  return !sending[tcc];
 }
 
 // Returns true if DMA transfer is NOT presently occurring and
 // NeoPixel EOD latch has fully transpired; library is idle.
 boolean Adafruit_NeoPXL8::canShow(void) {
-  return !sending && ((micros() - lastBitTime) > 300);
+  return !sending[tcc] && ((micros() - lastBitTime[tcc]) > 300);
 }
 
 // Brightness is stored differently here than in normal NeoPixel library.

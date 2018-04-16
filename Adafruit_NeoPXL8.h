@@ -8,7 +8,8 @@ class Adafruit_NeoPXL8 : public Adafruit_NeoPixel {
 
  public:
 
-  Adafruit_NeoPXL8(uint16_t n, int8_t *p=NULL, neoPixelType t=NEO_GRB);
+  Adafruit_NeoPXL8(uint16_t n, int8_t *p=NULL, neoPixelType t=NEO_GRB,
+    uint8_t tn=0);
   ~Adafruit_NeoPXL8();
 
   boolean          begin(void),
@@ -28,6 +29,7 @@ class Adafruit_NeoPXL8 : public Adafruit_NeoPixel {
   uint32_t        *alignedAddr; // long-aligned ptr into dmaBuf (see code)
   uint16_t         brightness;
   boolean          staged;      // If set, data is ready for DMA trigger
+  uint8_t          tcc;         // TCC peripheral #
 };
 
 #endif // _ADAFRUIT_NEOPXL8_H_
