@@ -1,23 +1,62 @@
-/*
-8-way concurrent DMA NeoPixel library for M0-based boards (Feather M0,
-Arduino Zero, etc.).  Doesn't require stopping interrupts,
-so millis()/micros() don't lose time, soft PWM (for servos, etc.)
-still operate normally, etc.  Also, has nondestructive brightness
-scaling...unlike classic NeoPixel, getPixelColor() here always returns
-the original value as was passed to setPixelColor().
-
-THIS IS A WORK-IN-PROGRESS AND NOT 100% THERE YET.
-
-THIS ONLY WORKS ON CERTAIN PINS.  THIS IS NORMAL.  Library uses TCC0
-"pattern generator" peripheral for output, and the hardware only supports
-this on specific pins.  See example sketch for explanation.
-
-0/1 bit timing does not precisely match NeoPixel/WS2812/SK6812 datasheet
-specs, but it seems to work well enough.  Use at your own peril.
-
-Some of the more esoteric NeoPixel functions are not implemented here,
-so this is not a 100% drop-in replacement for all NeoPixel code right now.
-*/
+/*!
+ * @file Adafruit_NeoPXL8.cpp
+ *
+ * @mainpage 8-way concurrent DMA NeoPixel library for SAMD21- and SAMD51-
+ * based boards.
+ *
+ * @section intro_sec Introduction
+ *
+ * Adafruit_NeoPXL8 is an Arduino library that leverages hardware features
+ * unique to some Atmel SAMD21- and SAMD51-based microcontrollers to
+ * communicate with large numbers of NeoPixels with very low CPU utilization
+ * (and without losing track of time).  It's designed for the Adafruit
+ * Feather M0 board with NeoPXL8 FeatherWing interface/adapter, but may be
+ * applicable to other situations (e.g. Arduino Zero, Adafruit Metro M0,
+ * etc., using logic level-shifting as necessary).
+ *
+ * NeoPXL8 FeatherWing: https://www.adafruit.com/product/3249
+ *
+ * Because these SAMD chips do not provide GPIO DMA, the code instead makes
+ * use of the "pattern generator" peripheral for its 8 concurrent outputs.
+ * Due to pin/peripheral multiplexing constraints, most outputs are limited
+ * to SPECIFIC PINS or provide at most ONE ALTERNATE pin selection.  See the
+ * example code for details.  The payoff is that this peripheral handles the
+ * NeoPixel data transfer while the CPU is entirely free to render the next
+ * frame (and interrupts can remain enabled -- millis()/micros() don't lose
+ * time, and soft PWM (for servos, etc.) still operate normally).
+ *
+ * Additionally, NeoPXL8 has nondestructive brightness scaling...unlike
+ * classic NeoPixel, getPixelColor() here always returns the original value
+ * as was passed to setPixelColor().
+ *
+ * 0/1 bit timing does not precisely match NeoPixel/WS2812/SK6812 datasheet
+ * specs, but it seems to work well enough.  Use at your own peril.
+ *
+ * Some of the more esoteric NeoPixel functions are not implemented here,
+ * so THIS IS NOT A 100% DROP-IN REPLACEMENT for all NeoPixel code right now.
+ *
+ * Adafruit invests time and resources providing this open source code,
+ * please support Adafruit and open-source hardware by purchasing
+ * products from Adafruit!
+ *
+ * @section dependencies Dependencies
+ *
+ * This library depends on
+ * <a href="https://github.com/adafruit/Adafruit_NeoPixel">Adafruit_NeoPixel</a>
+ * and
+ * <a href="https://github.com/adafruit/Adafruit_ZeroDMA">Adafruit_ZeroDMA</a>
+ * being present on your system. Please make sure you have installed the
+ * latest versions before using this library.
+ *
+ * @section author Author
+ *
+ * Written by Phil "Paint Your Dragon" Burgess for Adafruit Industries.
+ *
+ * @section license License
+ *
+ * MIT license, all text here must be included in any redistribution.
+ *
+ */
 
 #include "Adafruit_NeoPXL8.h"
 #include "wiring_private.h" // pinPeripheral() function
@@ -25,13 +64,13 @@ so this is not a 100% drop-in replacement for all NeoPixel code right now.
 // 300 uS latch time supports current WS2812B LEDs.  Earlier generations
 // and 'compatible' devices work at 50 uS, feel free to change this if you
 // know for certain your LEDs are compatible.
-#define LATCHTIME 300
+#define LATCHTIME 300  ///< Time, in microseconds, for end-of-data latch
 
 // DMA transfer using TCC0 as beat clock seems to stutter on the first
 // few elements out, which can botch the delicate NeoPixel timing.
 // A few initial zero bytes are issued to give DMA time to stabilize.
 // The number of bytes here was determined empirically.
-#define EXTRASTARTBYTES 24
+#define EXTRASTARTBYTES 24  ///< Empty bytes issued until DMA timing solidifies
 // Not a perfect solution and you might still see infrequent glitches,
 // especially on the first pixel of a strand.  Often this is just a matter
 // of logic levels -- SAMD21 is a 3.3V device, while NeoPixels want 5V
@@ -123,7 +162,7 @@ static struct {
   { PORTB, 31, 1, PIO_TIMER     }  // NC
 #endif
 };
-#define PINMAPSIZE (sizeof(tcc0pinMap) / sizeof(tcc0pinMap[0]))
+#define PINMAPSIZE (sizeof(tcc0pinMap) / sizeof(tcc0pinMap[0]))  ///< Number of elements in the tcc0pinMap[] array
 
 // Given a pin number, locate corresponding entry in the pin map table
 // above, configure as a pattern generator output and return bitmask
