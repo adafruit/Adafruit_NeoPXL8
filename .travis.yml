@@ -16,7 +16,7 @@ before_install:
    - source <(curl -SLs https://raw.githubusercontent.com/adafruit/travis-ci-arduino/master/install.sh)
 
 install:
-   - arduino --install-library "Adafruit NeoPixel","Adafruit Zero DMA"
+   - arduino --install-library "Adafruit NeoPixel","Adafruit Zero DMA Library"
 
 script:
    - build_platform zero
