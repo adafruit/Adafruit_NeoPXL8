@@ -3,8 +3,7 @@
 // For more complete usage of NeoPixel operations, see the examples
 // included with the 'regular' Adafruit_NeoPixel library.
 
-// Also requires LATEST Adafruit_NeoPixel, Adafruit_ZeroDMA and
-// Adafruit_ASFcore libraries.
+// Also requires LATEST Adafruit_NeoPixel and Adafruit_ZeroDMA libraries.
 
 // May require a logic level shifter (e.g. 75HCT245) for 5V pixels,
 // or use NeoPXL8 Featherwing for Adafruit Feather M0 boards.
