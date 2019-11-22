@@ -16,8 +16,8 @@
 // or pass NULL to use pins 0-7 on Metro Express, Arduino Zero, etc.
 Adafruit_NeoPXL8 leds(NUM_LED, NULL, NEO_GRB);
 
-// Here's a pinout that works with the Feather M0.  These are the
-// default connections for the 2x8 header on the NeoPXL8 Featherwing,
+// Here's a pinout that works with the Feather M0 (NOT M4).  These are
+// the default connections for the 2x8 header on the NeoPXL8 Featherwing,
 // which is 1:1 compatible with Fadecandy cabling:
 //int8_t pins[8] = { PIN_SERIAL1_RX, PIN_SERIAL1_TX, MISO, 13, 5, SDA, A4, A3 };
 //Adafruit_NeoPXL8 leds(NUM_LED, pins, NEO_GRB);
@@ -40,6 +40,14 @@ Adafruit_NeoPXL8 leds(NUM_LED, NULL, NEO_GRB);
 // Alternate pins on Metro M4:
 //int8_t pins[8] = { 9, 8, 0, 1, 13, 12, -1, SCK };
 // MOSI *should* work for bit 6, but does not. Datasheet error?
+
+// Here's a pinout that works with the Feather M4. Note that these pins
+// are NOT directly compatible with the NeoPXL8 FeatherWing, which was
+// designed with the Feather M0 in mind!
+//int8_t pins[8] = { 10, 11, 12, 13, PIN_SERIAL1_TX, PIN_SERIAL1_RX, 6, 9 };
+// Alternates are available for the last 4 pins:
+//int8_t pins[8] = { 10, 11, 12, 13, 5, SCK, SDA, SCL };
+
 
 void setup() {
   leds.begin();
