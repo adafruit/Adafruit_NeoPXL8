@@ -19,7 +19,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_ZeroDMA.h>
 
-/*! 
+/*!
     @brief Adafruit_NeoPXL8 is a subclass of Adafruit_NeoPixel containing
            buffers for DMA-formatted 8-way concurrent output.  Once a
            transfer is initiated, the original NeoPixel data can then be
@@ -28,8 +28,7 @@
 */
 class Adafruit_NeoPXL8 : public Adafruit_NeoPixel {
 
- public:
-
+public:
   /*!
     @brief  NeoPXL8 constructor.  Instantiates a new NeoPXL8 object (must
             follow with a begin() call to allocate buffers and initialize
@@ -50,7 +49,7 @@ class Adafruit_NeoPXL8 : public Adafruit_NeoPixel {
             (optional, default is GRB).
     @return Adafruit_NeoPXL8 object.
   */
-  Adafruit_NeoPXL8(uint16_t n, int8_t *p=NULL, neoPixelType t=NEO_GRB);
+  Adafruit_NeoPXL8(uint16_t n, int8_t *p = NULL, neoPixelType t = NEO_GRB);
   ~Adafruit_NeoPXL8(void);
 
   /*!
@@ -109,15 +108,14 @@ class Adafruit_NeoPXL8 : public Adafruit_NeoPixel {
   */
   uint8_t getBrightness(void) const;
 
- protected:
-
-  Adafruit_ZeroDMA dma;         ///< DMA object
-  int8_t           pins[8];     ///< Pin list for 8 NeoPixel strips
-  uint8_t          bitmask[8],  ///< Pattern generator bitmask for each pin
-                  *dmaBuf;      ///< Allocated buffer for pixel data + extra
-  uint32_t        *alignedAddr; ///< long-aligned ptr into dmaBuf (see code)
-  uint16_t         brightness;  ///< Brightness (stored as 1-256, not 0-255)
-  boolean          staged;      ///< If set, data is ready for DMA trigger
+protected:
+  Adafruit_ZeroDMA dma;  ///< DMA object
+  int8_t pins[8];        ///< Pin list for 8 NeoPixel strips
+  uint8_t bitmask[8],    ///< Pattern generator bitmask for each pin
+      *dmaBuf;           ///< Allocated buffer for pixel data + extra
+  uint32_t *alignedAddr; ///< long-aligned ptr into dmaBuf (see code)
+  uint16_t brightness;   ///< Brightness (stored as 1-256, not 0-255)
+  boolean staged;        ///< If set, data is ready for DMA trigger
 };
 
 #endif // _ADAFRUIT_NEOPXL8_H_
