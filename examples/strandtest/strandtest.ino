@@ -1,4 +1,4 @@
-// Example/diagnostic for the Adafruit_NeoPXL8 library.  Each of 8 strands
+// Example/diagnostic for the Adafruit_NeoPXL8 library. Each of 8 strands
 // is a distinct color, helps identify which pin goes to which strand.
 // For more complete usage of NeoPixel operations, see the examples
 // included with the 'regular' Adafruit_NeoPixel library.
@@ -16,9 +16,12 @@
 // or pass NULL to use pins 0-7 on Metro Express, Arduino Zero, etc.
 Adafruit_NeoPXL8 leds(NUM_LED, NULL, NEO_GRB);
 
-// Here's a pinout that works with the Feather M0 (NOT M4).  These are
-// the default connections for the 2x8 header on the NeoPXL8 Featherwing,
-// which is 1:1 compatible with Fadecandy cabling:
+// Keep in mind that the M0 and M4 variants of the NeoPXL8 FeatherWing are
+// NOT interchangeable -- you must have a matched Feather and 'wing!
+
+// Here's a pinout that works with the Feather M0 (NOT M4) w/NeoPXL8 M0
+// FeatherWing. These are the default connections for the 2x8 header on the
+// 'wing, which is 1:1 compatible with Fadecandy cabling:
 //int8_t pins[8] = { PIN_SERIAL1_RX, PIN_SERIAL1_TX, MISO, 13, 5, SDA, A4, A3 };
 //Adafruit_NeoPXL8 leds(NUM_LED, pins, NEO_GRB);
 
@@ -26,7 +29,7 @@ Adafruit_NeoPXL8 leds(NUM_LED, NULL, NEO_GRB);
 // reversed if 1:1 compatibility with OctoWS2811 cabling is desired:
 // int8_t pins[8] = { A3, A4, SDA, 5, 13, MISO, PIN_SERIAL1_TX, PIN_SERIAL1_RX };
 
-// 5 pins on the Featherwing have reconfigurable jumpers, in case the
+// 5 pins on the M0 Featherwing have reconfigurable jumpers, in case the
 // default pin connections interfere with a needed peripheral (Serial1,
 // I2C or SPI).  You do NOT need to use all 5 alternates; you can pick
 // and choose as needed!  But if changing all 5, they would be:
@@ -41,12 +44,10 @@ Adafruit_NeoPXL8 leds(NUM_LED, NULL, NEO_GRB);
 //int8_t pins[8] = { 9, 8, 0, 1, 13, 12, -1, SCK };
 // MOSI *should* work for bit 6, but does not. Datasheet error?
 
-// Here's a pinout that works with the Feather M4. Note that these pins
-// are NOT directly compatible with the NeoPXL8 FeatherWing, which was
-// designed with the Feather M0 in mind!
-//int8_t pins[8] = { 10, 11, 12, 13, PIN_SERIAL1_TX, PIN_SERIAL1_RX, 6, 9 };
+// Here's a pinout that works with the Feather M4 (w/NeoPXL8 M4 FeatherWing):
+//int8_t pins[8] = { 13, 12, 11, 10, SCK, 5, 9, 6 };
 // Alternates are available for the last 4 pins:
-//int8_t pins[8] = { 10, 11, 12, 13, 5, SCK, SDA, SCL };
+//int8_t pins[8] = { 13, 12, 11, 10, PIN_SERIAL1_RX, PIN_SERIAL1_TX, SCL, SDA };
 
 
 void setup() {
