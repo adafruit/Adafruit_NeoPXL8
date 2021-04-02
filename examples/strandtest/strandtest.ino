@@ -49,6 +49,10 @@ Adafruit_NeoPXL8 leds(NUM_LED, NULL, NEO_GRB);
 // Alternates are available for the last 4 pins:
 //int8_t pins[8] = { 13, 12, 11, 10, PIN_SERIAL1_RX, PIN_SERIAL1_TX, SCL, SDA };
 
+// For Grand Central, here are primary and alternate pin options:
+//int8_t pins[8] = { 30, 31, 32, 33, 36, 37, 34, 35 };
+//int8_t pins[8] = { 30, 31, 32, 33, 15, 14, 27, 26 };
+
 
 void setup() {
   leds.begin();

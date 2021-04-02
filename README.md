@@ -1,6 +1,5 @@
 # Adafruit_NeoPXL8
-DMA-driven 8-way concurrent NeoPixel driver for SAMD21 (M0+) boards.
-Requires latest Adafruit_NeoPixel and Adafruit_ZeroDMA libraries.
+DMA-driven 8-way concurrent NeoPixel driver for SAMD21 (M0+) and SAMD51 (M4) boards. Requires latest Adafruit_NeoPixel and Adafruit_ZeroDMA libraries.
 
 (Pronounced "NeoPixelate")
 
@@ -39,4 +38,6 @@ This keeps the Serial1 and SPI peripherals available, but prevents using I2C. A 
 
 The '-1' for a pin assignment disables that NeoPixel output (so this would have only 7 concurrent strands), but those pixels still take up memory and positions among the pixel indices.
 
-Pin MUXing is a hairy thing and over time we'll try to build up some ready-to-use examples for different boards and peripherals. You can also try picking your way through the SAMD21 datasheet or the NeoPXL8 source code for pin/peripheral assignments.
+Other boards (such as Grand Central) have an altogether different pinout. See the example for insights.
+
+Pin MUXing is a hairy thing and over time we'll try to build up some ready-to-use examples for different boards and peripherals. You can also try picking your way through the SAMD21/51 datasheet or the NeoPXL8 source code for pin/peripheral assignments.
