@@ -422,7 +422,7 @@ boolean Adafruit_NeoPXL8::begin(void) {
 
       uint8_t enableMask = 0x00; // Bitmask of pattern gen outputs
       for (i = 0; i < 8; i++) {
-        if ((bitmask[i] = configurePin(pins[i])))  // assign AND test!
+        if ((bitmask[i] = configurePin(pins[i]))) // assign AND test!
           enableMask |= bitmask[i];
       }
       TCC0->PATT.vec.PGV = 0; // Set all pattern outputs to 0
