@@ -83,23 +83,25 @@ Inheritance diagram for Adafruit_NeoPXL8:</div>
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
 <tr class="memitem:ac55a29f558560894eed7c4cfbb9df8e8"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#ac55a29f558560894eed7c4cfbb9df8e8">Adafruit_NeoPXL8</a> (uint16_t n, int8_t *p=NULL, neoPixelType t=NEO_GRB)</td></tr>
-<tr class="memdesc:ac55a29f558560894eed7c4cfbb9df8e8"><td class="mdescLeft">&#160;</td><td class="mdescRight">NeoPXL8 constructor. Instantiates a new NeoPXL8 object (must follow with a <a class="el" href="class_adafruit___neo_p_x_l8.html#a0c7e89710601080d2d7da220506c4e8b" title="Allocate buffers and initialize hardware for NeoPXL8 output. ">begin()</a> call to allocate buffers and initialize hardware).  <a href="#ac55a29f558560894eed7c4cfbb9df8e8">More...</a><br /></td></tr>
+<tr class="memdesc:ac55a29f558560894eed7c4cfbb9df8e8"><td class="mdescLeft">&#160;</td><td class="mdescRight">NeoPXL8 constructor. Instantiates a new NeoPXL8 object (must follow with a <a class="el" href="class_adafruit___neo_p_x_l8.html#a0c7e89710601080d2d7da220506c4e8b" title="Allocate buffers and initialize hardware for NeoPXL8 output. ">begin()</a> call to alloc buffers and init hardware).  <a href="#ac55a29f558560894eed7c4cfbb9df8e8">More...</a><br /></td></tr>
 <tr class="separator:ac55a29f558560894eed7c4cfbb9df8e8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0c7e89710601080d2d7da220506c4e8b"><td class="memItemLeft" align="right" valign="top">boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#a0c7e89710601080d2d7da220506c4e8b">begin</a> (void)</td></tr>
 <tr class="memdesc:a0c7e89710601080d2d7da220506c4e8b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocate buffers and initialize hardware for NeoPXL8 output.  <a href="#a0c7e89710601080d2d7da220506c4e8b">More...</a><br /></td></tr>
 <tr class="separator:a0c7e89710601080d2d7da220506c4e8b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a8b282a50e335c045181a39a5d556aabc"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#a8b282a50e335c045181a39a5d556aabc">show</a> (void)</td></tr>
-<tr class="memdesc:a8b282a50e335c045181a39a5d556aabc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Process and issue new data to the NeoPixel strands.  <a href="#a8b282a50e335c045181a39a5d556aabc">More...</a><br /></td></tr>
+<tr class="memitem:a8b282a50e335c045181a39a5d556aabc"><td class="memItemLeft" align="right" valign="top"><a id="a8b282a50e335c045181a39a5d556aabc"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#a8b282a50e335c045181a39a5d556aabc">show</a> (void)</td></tr>
+<tr class="memdesc:a8b282a50e335c045181a39a5d556aabc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Process and issue new data to the NeoPixel strands. <br /></td></tr>
 <tr class="separator:a8b282a50e335c045181a39a5d556aabc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adc29a596e9cd7426f18fe2439ddb0de3"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#adc29a596e9cd7426f18fe2439ddb0de3">stage</a> (void)</td></tr>
-<tr class="memdesc:adc29a596e9cd7426f18fe2439ddb0de3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Preprocess NeoPixel data into DMA-ready format, but do not issue to strands yet. Esoteric but potentially useful if aiming to have pixels refresh at precise intervals (since preprocessing is not deterministic) &ndash; e.g. 60 Hz &ndash; follow with a call to <a class="el" href="class_adafruit___neo_p_x_l8.html#a8b282a50e335c045181a39a5d556aabc" title="Process and issue new data to the NeoPixel strands. ">show()</a> when the actual data transfer is to occur.  <a href="#adc29a596e9cd7426f18fe2439ddb0de3">More...</a><br /></td></tr>
+<tr class="memitem:adc29a596e9cd7426f18fe2439ddb0de3"><td class="memItemLeft" align="right" valign="top"><a id="adc29a596e9cd7426f18fe2439ddb0de3"></a>
+void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#adc29a596e9cd7426f18fe2439ddb0de3">stage</a> (void)</td></tr>
+<tr class="memdesc:adc29a596e9cd7426f18fe2439ddb0de3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Preprocess NeoPixel data into DMA-ready format, but do not issue to strands yet. Esoteric but potentially useful if aiming to have pixels refresh at precise intervals (since preprocessing is not deterministic) &ndash; e.g. 60 Hz &ndash; follow with a call to <a class="el" href="class_adafruit___neo_p_x_l8.html#a8b282a50e335c045181a39a5d556aabc" title="Process and issue new data to the NeoPixel strands. ">show()</a> when the actual data transfer is to occur. <br /></td></tr>
 <tr class="separator:adc29a596e9cd7426f18fe2439ddb0de3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab4540bf20009eb9162d2151af24a6e89"><td class="memItemLeft" align="right" valign="top">boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#ab4540bf20009eb9162d2151af24a6e89">canShow</a> (void)</td></tr>
-<tr class="memdesc:ab4540bf20009eb9162d2151af24a6e89"><td class="mdescLeft">&#160;</td><td class="mdescRight">Poll whether last <a class="el" href="class_adafruit___neo_p_x_l8.html#a8b282a50e335c045181a39a5d556aabc" title="Process and issue new data to the NeoPixel strands. ">show()</a> transfer has completed and library is idle. Of questionable utility, but provided for compatibility with similarly questionable function in the NeoPixel library.  <a href="#ab4540bf20009eb9162d2151af24a6e89">More...</a><br /></td></tr>
-<tr class="separator:ab4540bf20009eb9162d2151af24a6e89"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a560d1116020795e60b2e37d47e6a9790"><td class="memItemLeft" align="right" valign="top">boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#a560d1116020795e60b2e37d47e6a9790">canStage</a> (void)</td></tr>
-<tr class="memdesc:a560d1116020795e60b2e37d47e6a9790"><td class="mdescLeft">&#160;</td><td class="mdescRight">Poll whether last <a class="el" href="class_adafruit___neo_p_x_l8.html#a8b282a50e335c045181a39a5d556aabc" title="Process and issue new data to the NeoPixel strands. ">show()</a> data transfer has completed, but not necessarily the end-of-data latch. This is the earliest moment at which one can <a class="el" href="class_adafruit___neo_p_x_l8.html#adc29a596e9cd7426f18fe2439ddb0de3" title="Preprocess NeoPixel data into DMA-ready format, but do not issue to strands yet. Esoteric but potenti...">stage()</a> the next frame of data.  <a href="#a560d1116020795e60b2e37d47e6a9790">More...</a><br /></td></tr>
-<tr class="separator:a560d1116020795e60b2e37d47e6a9790"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab1d2d3f6b256aa9cbdb0713667fe5f44"><td class="memItemLeft" align="right" valign="top">boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#ab1d2d3f6b256aa9cbdb0713667fe5f44">canShow</a> (void) const</td></tr>
+<tr class="memdesc:ab1d2d3f6b256aa9cbdb0713667fe5f44"><td class="mdescLeft">&#160;</td><td class="mdescRight">Poll whether last <a class="el" href="class_adafruit___neo_p_x_l8.html#a8b282a50e335c045181a39a5d556aabc" title="Process and issue new data to the NeoPixel strands. ">show()</a> transfer has completed and library is idle. Of questionable utility, but provided for compatibility with similarly questionable function in the NeoPixel library.  <a href="#ab1d2d3f6b256aa9cbdb0713667fe5f44">More...</a><br /></td></tr>
+<tr class="separator:ab1d2d3f6b256aa9cbdb0713667fe5f44"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab1e92657f687d746aae1f9e703b42270"><td class="memItemLeft" align="right" valign="top">boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#ab1e92657f687d746aae1f9e703b42270">canStage</a> (void) const</td></tr>
+<tr class="memdesc:ab1e92657f687d746aae1f9e703b42270"><td class="mdescLeft">&#160;</td><td class="mdescRight">Poll whether last <a class="el" href="class_adafruit___neo_p_x_l8.html#a8b282a50e335c045181a39a5d556aabc" title="Process and issue new data to the NeoPixel strands. ">show()</a> data transfer has completed, but not necessarily the end-of-data latch. This is the earliest moment at which one can <a class="el" href="class_adafruit___neo_p_x_l8.html#adc29a596e9cd7426f18fe2439ddb0de3" title="Preprocess NeoPixel data into DMA-ready format, but do not issue to strands yet. Esoteric but potenti...">stage()</a> the next frame of data.  <a href="#ab1e92657f687d746aae1f9e703b42270">More...</a><br /></td></tr>
+<tr class="separator:ab1e92657f687d746aae1f9e703b42270"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a666809d145056b1cd04d2f2bfa8a25a2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#a666809d145056b1cd04d2f2bfa8a25a2">setBrightness</a> (uint8_t b)</td></tr>
 <tr class="memdesc:a666809d145056b1cd04d2f2bfa8a25a2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set strip brightness for subsequent <a class="el" href="class_adafruit___neo_p_x_l8.html#a8b282a50e335c045181a39a5d556aabc" title="Process and issue new data to the NeoPixel strands. ">show()</a> calls. Unlike the Adafruit_NeoPixel library, this function is non-destructive &ndash; original color values passed to setPixelColor() will always be accurately returned by getPixelColor(), even if brightness is adjusted.  <a href="#a666809d145056b1cd04d2f2bfa8a25a2">More...</a><br /></td></tr>
 <tr class="separator:a666809d145056b1cd04d2f2bfa8a25a2"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -113,6 +115,10 @@ Protected Attributes</h2></td></tr>
 Adafruit_ZeroDMA&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#ab271b061b0de614776ce90626fc3c248">dma</a></td></tr>
 <tr class="memdesc:ab271b061b0de614776ce90626fc3c248"><td class="mdescLeft">&#160;</td><td class="mdescRight">DMA object. <br /></td></tr>
 <tr class="separator:ab271b061b0de614776ce90626fc3c248"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a76c393c2fe37a8a3d49e97140cf6fe5c"><td class="memItemLeft" align="right" valign="top"><a id="a76c393c2fe37a8a3d49e97140cf6fe5c"></a>
+uint32_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#a76c393c2fe37a8a3d49e97140cf6fe5c">alignedAddr</a></td></tr>
+<tr class="memdesc:a76c393c2fe37a8a3d49e97140cf6fe5c"><td class="mdescLeft">&#160;</td><td class="mdescRight">long-aligned ptr into dmaBuf (see code) <br /></td></tr>
+<tr class="separator:a76c393c2fe37a8a3d49e97140cf6fe5c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9c43fef745239015f86de82bb88d3756"><td class="memItemLeft" align="right" valign="top"><a id="a9c43fef745239015f86de82bb88d3756"></a>
 int8_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#a9c43fef745239015f86de82bb88d3756">pins</a> [8]</td></tr>
 <tr class="memdesc:a9c43fef745239015f86de82bb88d3756"><td class="mdescLeft">&#160;</td><td class="mdescRight">Pin list for 8 NeoPixel strips. <br /></td></tr>
@@ -121,14 +127,10 @@ int8_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="cl
 uint8_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#a0ca8b94a2849086a7fad25eb828394e7">bitmask</a> [8]</td></tr>
 <tr class="memdesc:a0ca8b94a2849086a7fad25eb828394e7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Pattern generator bitmask for each pin. <br /></td></tr>
 <tr class="separator:a0ca8b94a2849086a7fad25eb828394e7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1caf2912fb10447d737dee89ff05fc4e"><td class="memItemLeft" align="right" valign="top"><a id="a1caf2912fb10447d737dee89ff05fc4e"></a>
-uint8_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#a1caf2912fb10447d737dee89ff05fc4e">dmaBuf</a></td></tr>
-<tr class="memdesc:a1caf2912fb10447d737dee89ff05fc4e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocated buffer for pixel data + extra. <br /></td></tr>
-<tr class="separator:a1caf2912fb10447d737dee89ff05fc4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a76c393c2fe37a8a3d49e97140cf6fe5c"><td class="memItemLeft" align="right" valign="top"><a id="a76c393c2fe37a8a3d49e97140cf6fe5c"></a>
-uint32_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#a76c393c2fe37a8a3d49e97140cf6fe5c">alignedAddr</a></td></tr>
-<tr class="memdesc:a76c393c2fe37a8a3d49e97140cf6fe5c"><td class="mdescLeft">&#160;</td><td class="mdescRight">long-aligned ptr into dmaBuf (see code) <br /></td></tr>
-<tr class="separator:a76c393c2fe37a8a3d49e97140cf6fe5c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aec38b7a97d034d157ec608b15a9b53fc"><td class="memItemLeft" align="right" valign="top"><a id="aec38b7a97d034d157ec608b15a9b53fc"></a>
+uint8_t *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#aec38b7a97d034d157ec608b15a9b53fc">dmaBuf</a></td></tr>
+<tr class="memdesc:aec38b7a97d034d157ec608b15a9b53fc"><td class="mdescLeft">&#160;</td><td class="mdescRight">Allocated buffer for pixel data + any extra. <br /></td></tr>
+<tr class="separator:aec38b7a97d034d157ec608b15a9b53fc"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:abce63165f347f88d1a3cc43fb1d4de6b"><td class="memItemLeft" align="right" valign="top"><a id="abce63165f347f88d1a3cc43fb1d4de6b"></a>
 uint16_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#abce63165f347f88d1a3cc43fb1d4de6b">brightness</a></td></tr>
 <tr class="memdesc:abce63165f347f88d1a3cc43fb1d4de6b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Brightness (stored as 1-256, not 0-255) <br /></td></tr>
@@ -173,16 +175,15 @@ boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
       </table>
 </div><div class="memdoc">
 
-<p>NeoPXL8 constructor. Instantiates a new NeoPXL8 object (must follow with a <a class="el" href="class_adafruit___neo_p_x_l8.html#a0c7e89710601080d2d7da220506c4e8b" title="Allocate buffers and initialize hardware for NeoPXL8 output. ">begin()</a> call to allocate buffers and initialize hardware). </p>
+<p>NeoPXL8 constructor. Instantiates a new NeoPXL8 object (must follow with a <a class="el" href="class_adafruit___neo_p_x_l8.html#a0c7e89710601080d2d7da220506c4e8b" title="Allocate buffers and initialize hardware for NeoPXL8 output. ">begin()</a> call to alloc buffers and init hardware). </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">n</td><td>Length of each NeoPixel strand (total number of pixels will be 8X this). </td></tr>
-    <tr><td class="paramname">p</td><td>Optional int8_t array of eight pin numbers for NeoPixel strands 0-7. There are specific hardware limitations as to which pins can be used, see the example sketch. If fewer than 8 outputs are needed, assign a value of -1 to the unused outputs, keeping in mind that this will always still use the same amount of memory as 8-way output. If unspecified (or if NULL is passed), a default 8-pin setup will be used (see example sketch). </td></tr>
+    <tr><td class="paramname">p</td><td>Optional int8_t array of eight pin numbers for NeoPixel strands 0-7. There are specific hardware limitations as to which pins can be used, see the example sketch. If fewer than 8 outputs are needed, assign a value of -1 to the unused outputs, keeping in mind that this will always still use the same amount of memory as 8-way output. If unspecified (or if NULL is passed), a default 8-pin setup will be used (see example sketch). On RP2040, these are GP## numbers, not necessarily the digital pin numbers silkscreened on the board. </td></tr>
     <tr><td class="paramname">t</td><td>NeoPixel color data order, same as in Adafruit_NeoPixel library (optional, default is GRB). </td></tr>
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd><a class="el" href="class_adafruit___neo_p_x_l8.html" title="Adafruit_NeoPXL8 is a subclass of Adafruit_NeoPixel containing buffers for DMA-formatted 8-way concur...">Adafruit_NeoPXL8</a> object. </dd></dl>
 
 </div>
 </div>
@@ -208,50 +209,8 @@ boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
 
 </div>
 </div>
-<a id="a8b282a50e335c045181a39a5d556aabc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a8b282a50e335c045181a39a5d556aabc">&#9670;&nbsp;</a></span>show()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void Adafruit_NeoPXL8::show </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Process and issue new data to the NeoPixel strands. </p>
-<dl class="section return"><dt>Returns</dt><dd>None (void). </dd></dl>
-
-</div>
-</div>
-<a id="adc29a596e9cd7426f18fe2439ddb0de3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adc29a596e9cd7426f18fe2439ddb0de3">&#9670;&nbsp;</a></span>stage()</h2>
-
-<div class="memitem">
-<div class="memproto">
-      <table class="memname">
-        <tr>
-          <td class="memname">void Adafruit_NeoPXL8::stage </td>
-          <td>(</td>
-          <td class="paramtype">void&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-</div><div class="memdoc">
-
-<p>Preprocess NeoPixel data into DMA-ready format, but do not issue to strands yet. Esoteric but potentially useful if aiming to have pixels refresh at precise intervals (since preprocessing is not deterministic) &ndash; e.g. 60 Hz &ndash; follow with a call to <a class="el" href="class_adafruit___neo_p_x_l8.html#a8b282a50e335c045181a39a5d556aabc" title="Process and issue new data to the NeoPixel strands. ">show()</a> when the actual data transfer is to occur. </p>
-<dl class="section return"><dt>Returns</dt><dd>None (void). </dd></dl>
-
-</div>
-</div>
-<a id="ab4540bf20009eb9162d2151af24a6e89"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab4540bf20009eb9162d2151af24a6e89">&#9670;&nbsp;</a></span>canShow()</h2>
+<a id="ab1d2d3f6b256aa9cbdb0713667fe5f44"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab1d2d3f6b256aa9cbdb0713667fe5f44">&#9670;&nbsp;</a></span>canShow()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -261,7 +220,7 @@ boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
           <td>(</td>
           <td class="paramtype">void&#160;</td>
           <td class="paramname"></td><td>)</td>
-          <td></td>
+          <td> const</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -271,8 +230,8 @@ boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
 
 </div>
 </div>
-<a id="a560d1116020795e60b2e37d47e6a9790"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a560d1116020795e60b2e37d47e6a9790">&#9670;&nbsp;</a></span>canStage()</h2>
+<a id="ab1e92657f687d746aae1f9e703b42270"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab1e92657f687d746aae1f9e703b42270">&#9670;&nbsp;</a></span>canStage()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -282,7 +241,7 @@ boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
           <td>(</td>
           <td class="paramtype">void&#160;</td>
           <td class="paramname"></td><td>)</td>
-          <td></td>
+          <td> const</td>
         </tr>
       </table>
 </div><div class="memdoc">
@@ -297,6 +256,9 @@ boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
 
 <div class="memitem">
 <div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">void Adafruit_NeoPXL8::setBrightness </td>
@@ -306,6 +268,11 @@ boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
           <td></td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
 
 <p>Set strip brightness for subsequent <a class="el" href="class_adafruit___neo_p_x_l8.html#a8b282a50e335c045181a39a5d556aabc" title="Process and issue new data to the NeoPixel strands. ">show()</a> calls. Unlike the Adafruit_NeoPixel library, this function is non-destructive &ndash; original color values passed to setPixelColor() will always be accurately returned by getPixelColor(), even if brightness is adjusted. </p>
@@ -315,7 +282,6 @@ boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
   </table>
   </dd>
 </dl>
-<dl class="section return"><dt>Returns</dt><dd>None (void). </dd></dl>
 
 </div>
 </div>
@@ -324,6 +290,9 @@ boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
 
 <div class="memitem">
 <div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
       <table class="memname">
         <tr>
           <td class="memname">uint8_t Adafruit_NeoPXL8::getBrightness </td>
@@ -333,6 +302,11 @@ boolean&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
           <td> const</td>
         </tr>
       </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
 </div><div class="memdoc">
 
 <p>Query brightness value last assigned with <a class="el" href="class_adafruit___neo_p_x_l8.html#a666809d145056b1cd04d2f2bfa8a25a2" title="Set strip brightness for subsequent show() calls. Unlike the Adafruit_NeoPixel library, this function is non-destructive – original color values passed to setPixelColor() will always be accurately returned by getPixelColor(), even if brightness is adjusted. ">setBrightness()</a>. </p>
