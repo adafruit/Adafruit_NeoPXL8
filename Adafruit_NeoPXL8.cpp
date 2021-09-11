@@ -235,6 +235,7 @@ static uint8_t configurePin(uint8_t pin) {
 // Called at end of DMA transfer. Clears 'sending' flag and notes
 // start-of-NeoPixel-latch time.
 static void dmaCallback(Adafruit_ZeroDMA *dma) {
+  (void)(dma); // just get rid of unused arg warning
   lastBitTime = micros();
   sending = 0;
 }

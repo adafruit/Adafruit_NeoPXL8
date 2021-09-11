@@ -143,11 +143,11 @@ protected:
   Adafruit_ZeroDMA dma;  ///< DMA object
   uint32_t *alignedAddr; ///< long-aligned ptr into dmaBuf (see code)
 #endif
-  int8_t pins[8];      ///< Pin list for 8 NeoPixel strips
-  uint8_t bitmask[8];  ///< Pattern generator bitmask for each pin
-  uint8_t *dmaBuf;     ///< Allocated buffer for pixel data + any extra
-  uint16_t brightness; ///< Brightness (stored as 1-256, not 0-255)
-  boolean staged;      ///< If set, data is ready for DMA trigger
+  int8_t pins[8];            ///< Pin list for 8 NeoPixel strips
+  uint8_t bitmask[8];        ///< Pattern generator bitmask for each pin
+  uint8_t *dmaBuf = NULL;    ///< Allocated buffer for pixel data + any extra
+  uint16_t brightness = 255; ///< Brightness (stored as 1-256, not 0-255)
+  boolean staged;            ///< If set, data is ready for DMA trigger
 };
 
 #endif // _ADAFRUIT_NEOPXL8_H_
