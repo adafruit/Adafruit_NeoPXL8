@@ -1,26 +1,29 @@
 /*!
  * @file Adafruit_NeoPXL8.cpp
  *
- * @mainpage 8-way concurrent DMA NeoPixel library for SAMD21- and SAMD51-
- * based boards.
+ * @mainpage 8-way concurrent DMA NeoPixel library for SAMD21, SAMD51 and
+ * RP2040 microcontrollers.
  *
  * @section intro_sec Introduction
  *
  * Adafruit_NeoPXL8 is an Arduino library that leverages hardware features
- * unique to some Atmel SAMD21- and SAMD51-based microcontrollers to
- * communicate with large numbers of NeoPixels with very low CPU utilization
- * (and without losing track of time).  It's designed for the Adafruit
- * Feather M0 board with NeoPXL8 FeatherWing interface/adapter, but may be
- * applicable to other situations (e.g. Arduino Zero, Adafruit Metro M0,
- * etc., using logic level-shifting as necessary).
+ * unique to some Atmel SAMD21 and SAMD51 microcontrollers, plus the
+ * Raspberry Pi RP2040 chip, to communicate with large numbers of NeoPixels
+ * with very low CPU utilization and without losing track of time.
+ * It was originally designed for the Adafruit Feather M0 board with NeoPXL8
+ * FeatherWing interface/adapter, but may be applicable to other situations
+ * (e.g. Arduino Zero, Adafruit Metro M0, etc., using logic level-shifting
+ * as necessary). A different FeatherWing with pinout specific to the
+ * Feather M4 is also available.
  *
- * NeoPXL8 FeatherWing: https://www.adafruit.com/product/3249
+ * NeoPXL8 FeatherWing M0: https://www.adafruit.com/product/3249
+ * NeoPXL8 FeatherWing M4: https://www.adafruit.com/product/4537
  *
- * Because these SAMD chips do not provide GPIO DMA, the code instead makes
- * use of the "pattern generator" peripheral for its 8 concurrent outputs.
+ * Because the SAMD21 does not provide GPIO DMA, the code instead makes use
+ * of the "pattern generator" peripheral for its 8 concurrent outputs.
  * Due to pin/peripheral multiplexing constraints, most outputs are limited
- * to SPECIFIC PINS or provide at most ONE ALTERNATE pin selection.  See the
- * example code for details.  The payoff is that this peripheral handles the
+ * to SPECIFIC PINS or provide at most ONE ALTERNATE pin selection. See the
+ * example code for details. The payoff is that this peripheral handles the
  * NeoPixel data transfer while the CPU is entirely free to render the next
  * frame (and interrupts can remain enabled -- millis()/micros() don't lose
  * time, and soft PWM (for servos, etc.) still operate normally).
@@ -29,11 +32,15 @@
  * classic NeoPixel, getPixelColor() here always returns the original value
  * as was passed to setPixelColor().
  *
- * 0/1 bit timing does not precisely match NeoPixel/WS2812/SK6812 datasheet
- * specs, but it seems to work well enough.  Use at your own peril.
+ * RP2040 support requires Philhower core (not Arduino mbed core).
+ * Also on RP2040, pin numbers passed to constructor are GP## indices,
+ * not necessarily the digital pin numbers silkscreened on the board.
  *
- * Some of the more esoteric NeoPixel functions are not implemented here,
- * so THIS IS NOT A 100% DROP-IN REPLACEMENT for all NeoPixel code right now.
+ * 0/1 bit timing does not precisely match NeoPixel/WS2812/SK6812 datasheet
+ * specs, but it seems to work well enough. Use at your own peril.
+ *
+ * Some of the more esoteric NeoPixel functions are not implemented here, so
+ * THIS IS NOT A 100% DROP-IN REPLACEMENT for all NeoPixel code right now.
  *
  * Adafruit invests time and resources providing this open source code,
  * please support Adafruit and open-source hardware by purchasing
@@ -43,7 +50,7 @@
  *
  * This library depends on
  * <a href="https://github.com/adafruit/Adafruit_NeoPixel">Adafruit_NeoPixel</a>
- * and
+ * and (for SAMD chips)
  * <a href="https://github.com/adafruit/Adafruit_ZeroDMA">Adafruit_ZeroDMA</a>
  * being present on your system. Please make sure you have installed the
  * latest versions before using this library.
@@ -61,43 +68,84 @@
 #include "Adafruit_NeoPXL8.h"
 #include "wiring_private.h" // pinPeripheral() function
 
-// 300 uS latch time supports current WS2812B LEDs.  Earlier generations
+// 300 uS latch time supports current WS2812B LEDs. Earlier generations
 // and 'compatible' devices work at 50 uS, feel free to change this if you
 // know for certain your LEDs are compatible.
 #define LATCHTIME 300 ///< Time, in microseconds, for end-of-data latch
 
-// DMA transfer using TCC0 as beat clock seems to stutter on the first
-// few elements out, which can botch the delicate NeoPixel timing.
-// A few initial zero bytes are issued to give DMA time to stabilize.
-// The number of bytes here was determined empirically.
+// SAMD DMA transfer using TCC0 as beat clock seems to stutter on the first
+// few elements out, which can botch the delicate NeoPixel timing. A few
+// initial zero bytes are issued to give DMA time to stabilize. The number
+// of bytes here was determined empirically.
 #define EXTRASTARTBYTES 24 ///< Empty bytes issued until DMA timing solidifies
 // Not a perfect solution and you might still see infrequent glitches,
-// especially on the first pixel of a strand.  Often this is just a matter
-// of logic levels -- SAMD21 is a 3.3V device, while NeoPixels want 5V
-// logic -- so either use a logic level shifter, or simply power the
-// NeoPixels at a slightly lower voltage (e.g. 4.5V).  It may also be due
-// to the 1:3 bit timing generated by this code (close but doesn't exactly
-// match the NeoPixel spec)...usually only affects the 1st pixel,
-// subsequent pixels OK due to signal reshaping through the 1st.
+// especially on the first pixel of a strand. Often this is just a matter of
+// logic levels -- SAMD is a 3.3V device, while NeoPixels want 5V logic --
+// so either use a logic level shifter, or simply power the NeoPixels at a
+// slightly lower voltage (e.g. 4.5V). It may also be due to the 1:3 bit
+// timing generated by this code (close but doesn't exactly match the
+// NeoPixel spec)...usually only affects the 1st pixel, subsequent pixels OK
+// due to signal reshaping through the 1st.
 
 static const int8_t defaultPins[] = {0, 1, 2, 3, 4, 5, 6, 7};
 static volatile boolean sending = 0;  // Set while DMA transfer is active
 static volatile uint32_t lastBitTime; // micros() when last bit issued
 
 Adafruit_NeoPXL8::Adafruit_NeoPXL8(uint16_t n, int8_t *p, neoPixelType t)
-    : Adafruit_NeoPixel(n * 8, -1, t), brightness(256), dmaBuf(NULL) {
+    : Adafruit_NeoPixel(n * 8, -1, t), dmaBuf(NULL), brightness(256) {
   memcpy(pins, p ? p : defaultPins, sizeof(pins));
 }
 
-Adafruit_NeoPXL8::~Adafruit_NeoPXL8() {
-  dma.abort();
-  if (dmaBuf)
-    free(dmaBuf);
+#if defined(ARDUINO_ARCH_RP2040)
+
+// A couple elements of the NeoPXL8 struct must be accessed in the DMA IRQ,
+// which is outside the class. A pointer to the active NeoPXL8 is kept, so
+// we can call a member function (also gets us around some protected access).
+// This does mean only a single NeoPXL8 can be active, as on SAMD.
+static Adafruit_NeoPXL8 *neopxl8_ptr = NULL;
+
+// PIO code. As currently written, uses 2/9 and 5/9 duty cycle for '0' and
+// '1' bits respectively. This does not match the datasheet, but works well
+// enough (actual NeoPixel output doesn't match the datasheet either,
+// there's ample slop). But if this proves problematic, the delay values
+// can be tweaked and the total cycles can be factored into the value
+// passed to sm_config_set_clkdiv() later.
+static const uint16_t neopxl8_opcodes[] = {
+    //             .wrap_target
+    0xA103, // 0: mov  pins, null  [1]  Write 8 parallel '0' bits, delay 1
+    0x80A0, // 1: pull block            Wait on next byte from TX FIFO to OSR
+    0xA10B, // 2: mov  pins, !null [1]  Write 8 parallel '1' bits, delay 1
+    0xA307, // 3: mov  pins, osr   [3]  Write 8 parallel data bits, delay 3
+            //     .wrap
+};
+
+static const struct pio_program neopxl8_program = {
+    .instructions = neopxl8_opcodes,
+    .length = sizeof neopxl8_opcodes / sizeof neopxl8_opcodes[0],
+    .origin = -1,
+};
+
+// Called at end of DMA transfer. Clears 'sending' flag and notes
+// start-of-NeoPixel-latch time.
+void Adafruit_NeoPXL8::dma_callback() {
+  // Reset DMA source address for next transfer
+  dma_channel_set_read_addr(dma_channel, dmaBuf, false);
+  dma_hw->ints0 = 1u << dma_channel; // Clear IRQ
+  lastBitTime = micros();
+  sending = 0;
 }
 
+static void dma_finish_irq(void) {
+  if (neopxl8_ptr) {
+    neopxl8_ptr->dma_callback();
+  }
+}
+
+#else // SAMD
+
 // This table holds PORTs, bits and peripheral selects of valid pattern
-// generator waveform outputs.  This data is not in the Arduino variant
-// header...was derived from the SAM D21E/G/J datasheet.  Some of these
+// generator waveform outputs. This data is not in the Arduino variant
+// header...was derived from the SAM D21E/G/J datasheet. Some of these
 // PORT/pin combos are NOT present on some dev boards or SAMD21 variants.
 // If a pin is NOT in this list, it just means there's no TCC0/W[n] func
 // there, but it may still exist and have other peripheral functions.
@@ -114,7 +162,7 @@ static struct {
     {PORTA, 11, 3, PIO_TIMER_ALT}, // FLASH_IO3
     {PORTA, 12, 6, PIO_TIMER_ALT}, // MOSI   PCC/DEN1  NOT WORKING?
     {PORTA, 13, 7, PIO_TIMER_ALT}, // SCK    PCC/DEN2
-    //  PORTA  14  (no TCC0 function)     MISO   PCC/CLK (PIO_COM = peripheral
+    //  PORTA  14 (no TCC0 function)  MISO   PCC/CLK (PIO_COM = peripheral
     //  G)
     {PORTA, 16, 4, PIO_TCC_PDEC},  // D13    PCC[0]
     {PORTA, 17, 5, PIO_TCC_PDEC},  // D12    PCC[1]
@@ -170,7 +218,7 @@ static struct {
 // Given a pin number, locate corresponding entry in the pin map table
 // above, configure as a pattern generator output and return bitmask
 // for later data conversion (returns 0 if invalid pin).
-static uint8_t configurePin(uint8_t pin) {
+static uint8_t configurePin(int8_t pin) {
   if ((pin >= 0) && (pin < PINS_COUNT)) {
     EPortType port = g_APinDescription[pin].ulPort;
     uint8_t bit = g_APinDescription[pin].ulPin;
@@ -184,18 +232,113 @@ static uint8_t configurePin(uint8_t pin) {
   return 0;
 }
 
-// Called at end of DMA transfer.  Clears 'sending' flag and notes
+// Called at end of DMA transfer. Clears 'sending' flag and notes
 // start-of-NeoPixel-latch time.
 static void dmaCallback(Adafruit_ZeroDMA *dma) {
+  (void)(dma); // just get rid of unused arg warning
   lastBitTime = micros();
   sending = 0;
 }
 
+#endif // end SAMD
+
+Adafruit_NeoPXL8::~Adafruit_NeoPXL8() {
+#if defined(ARDUINO_ARCH_RP2040)
+  dma_channel_abort(dma_channel);
+  neopxl8_ptr = NULL;
+#else
+  dma.abort();
+#endif
+  if (dmaBuf)
+    free(dmaBuf);
+}
+
+#if defined(ARDUINO_ARCH_RP2040)
+boolean Adafruit_NeoPXL8::begin(PIO pio_instance) {
+#else
 boolean Adafruit_NeoPXL8::begin(void) {
+#endif
   Adafruit_NeoPixel::begin(); // Call base class begin() function 1st
   if (pixels) {               // Successful malloc of NeoPixel buffer?
     uint8_t bytesPerPixel = (wOffset == rOffset) ? 3 : 4;
-    uint32_t bytesTotal = numLEDs * bytesPerPixel * 3 + EXTRASTARTBYTES + 3;
+    uint32_t bytesTotal;
+
+    memset(bitmask, 0, sizeof(bitmask));
+
+#if defined(ARDUINO_ARCH_RP2040)
+
+    pio = pio_instance;
+
+    // Validate pins, must be within any 8 consecutive GPIO bits
+    int16_t least_pin = 0x7FFF, most_pin = -1;
+    for (uint8_t i = 0; i < 8; i++) {
+      if (pins[i] >= 0) {
+        least_pin = min(least_pin, pins[i]);
+        most_pin = max(most_pin, pins[i]);
+      }
+    }
+    if (abs(most_pin - least_pin) > 7) {
+      return false;
+    }
+
+    neopxl8_ptr = this; // Save object pointer for interrupt
+
+    bytesTotal = numLEDs * bytesPerPixel;
+    if ((dmaBuf = (uint8_t *)malloc(bytesTotal))) {
+
+      // Set up PIO outputs
+      uint32_t pindir_mask = 0;
+      for (uint8_t i = 0; i < 8; i++) {
+        if (pins[i] >= 0) {
+          pio_gpio_init(pio, pins[i]);
+          pindir_mask = 1 << pins[i];
+          bitmask[i] = 1 << (pins[i] - least_pin);
+        }
+      }
+      // Func not working? Or using it wrong?
+      // pio_sm_set_pindirs_with_mask(pio, sm, pindir_mask, pindir_mask);
+      // For now, set all 8 as outputs, even if in-betweens are skipped
+      pio_sm_set_consecutive_pindirs(pio, sm, least_pin, 8, true);
+
+      // Set up PIO code & clock
+      uint offset = pio_add_program(pio, &neopxl8_program);
+      sm = pio_claim_unused_sm(pio, true); // 0-3
+      pio_sm_config conf = pio_get_default_sm_config();
+      conf.pinctrl = 0; // SDK fails to set this
+      sm_config_set_wrap(&conf, offset, offset + neopxl8_program.length - 1);
+      sm_config_set_out_shift(&conf, true, false, 8);
+      sm_config_set_out_pins(&conf, least_pin, 8);
+      sm_config_set_in_shift(&conf, true, false, 8);
+      sm_config_set_fifo_join(&conf, PIO_FIFO_JOIN_TX);
+      float div = (float)F_CPU / 800000.0 / 9.0; // 9 = PIO cycles/bit
+      sm_config_set_clkdiv(&conf, div);
+      pio_sm_init(pio, sm, offset, &conf);
+      pio_sm_set_enabled(pio, sm, true);
+
+      // Set up DMA transfer
+      dma_channel = dma_claim_unused_channel(false); // Don't panic
+
+      dma_config = dma_channel_get_default_config(dma_channel);
+      channel_config_set_transfer_data_size(&dma_config, DMA_SIZE_8);
+      channel_config_set_read_increment(&dma_config, true);
+      channel_config_set_write_increment(&dma_config, false);
+      // Set DMA trigger
+      channel_config_set_dreq(&dma_config, pio_get_dreq(pio, sm, true));
+      dma_channel_configure(dma_channel, &dma_config,
+                            &pio->txf[sm], // dest
+                            dmaBuf,        // src
+                            bytesTotal, false);
+      // Set up end-of-DMA interrupt
+      irq_set_exclusive_handler(DMA_IRQ_0, dma_finish_irq);
+      dma_channel_set_irq0_enabled(dma_channel, true);
+      irq_set_enabled(DMA_IRQ_0, true);
+
+      return true; // Success!
+    }
+
+#else // SAMD
+
+    bytesTotal = numLEDs * bytesPerPixel * 3 + EXTRASTARTBYTES + 3;
     if ((dmaBuf = (uint8_t *)malloc(bytesTotal))) {
       int i;
 
@@ -277,10 +420,9 @@ boolean Adafruit_NeoPXL8::begin(void) {
       while (TCC0->SYNCBUSY.bit.PER)
         ;
 
-      memset(bitmask, 0, sizeof(bitmask));
       uint8_t enableMask = 0x00; // Bitmask of pattern gen outputs
       for (i = 0; i < 8; i++) {
-        if (bitmask[i] = configurePin(pins[i]))
+        if ((bitmask[i] = configurePin(pins[i]))) // assign AND test!
           enableMask |= bitmask[i];
       }
       TCC0->PATT.vec.PGV = 0; // Set all pattern outputs to 0
@@ -296,6 +438,9 @@ boolean Adafruit_NeoPXL8::begin(void) {
 
       return true; // Success!
     }
+
+#endif // end SAMD
+
     free(pixels);
     pixels = NULL;
   }
@@ -309,6 +454,42 @@ void Adafruit_NeoPXL8::stage(void) {
   uint8_t bytesPerLED = (wOffset == rOffset) ? 3 : 4;
   uint32_t pixelsPerRow = numLEDs / 8, bytesPerRow = pixelsPerRow * bytesPerLED,
            i;
+
+#if defined(ARDUINO_ARCH_RP2040)
+
+  memset(dmaBuf, 0, numLEDs * bytesPerLED);
+
+  for (uint8_t b = 0; b < 8; b++) { // For each output pin 0-7
+    uint8_t mask = bitmask[b];
+    if (mask) {                                // Enabled?
+      uint8_t *src = &pixels[b * bytesPerRow]; // Start of row data
+      uint8_t *dst = dmaBuf;
+      for (i = 0; i < bytesPerRow; i++) { // Each byte in row...
+        // Brightness scaling doesn't require shift down,
+        // we'll just pluck from bits 15-8...
+        uint16_t value = *src++ * brightness;
+        if (value & 0x8000)
+          dst[0] |= mask;
+        if (value & 0x4000)
+          dst[1] |= mask;
+        if (value & 0x2000)
+          dst[2] |= mask;
+        if (value & 0x1000)
+          dst[3] |= mask;
+        if (value & 0x0800)
+          dst[4] |= mask;
+        if (value & 0x0400)
+          dst[5] |= mask;
+        if (value & 0x0200)
+          dst[6] |= mask;
+        if (value & 0x0100)
+          dst[7] |= mask;
+        dst += 8;
+      }
+    }
+  }
+
+#else // SAMD
 
   static const uint8_t dmaFill[] __attribute__((__aligned__(4))) = {
       0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00,
@@ -326,8 +507,8 @@ void Adafruit_NeoPXL8::stage(void) {
   }
 
   for (uint8_t b = 0; b < 8; b++) { // For each output pin 0-7
-    uint8_t bb = bitmask[b];
-    if (bb) {                                  // Enabled?
+    uint8_t mask = bitmask[b];
+    if (mask) {                                // Enabled?
       uint8_t *src = &pixels[b * bytesPerRow]; // Start of row data
       uint8_t *dst = &((uint8_t *)alignedAddr)[1];
       for (i = 0; i < bytesPerRow; i++) { // Each byte in row...
@@ -335,41 +516,55 @@ void Adafruit_NeoPXL8::stage(void) {
         // we'll just pluck from bits 15-8...
         uint16_t value = *src++ * brightness;
         if (value & 0x8000)
-          dst[0] |= bb;
+          dst[0] |= mask;
         if (value & 0x4000)
-          dst[3] |= bb;
+          dst[3] |= mask;
         if (value & 0x2000)
-          dst[6] |= bb;
+          dst[6] |= mask;
         if (value & 0x1000)
-          dst[9] |= bb;
+          dst[9] |= mask;
         if (value & 0x0800)
-          dst[12] |= bb;
+          dst[12] |= mask;
         if (value & 0x0400)
-          dst[15] |= bb;
+          dst[15] |= mask;
         if (value & 0x0200)
-          dst[18] |= bb;
+          dst[18] |= mask;
         if (value & 0x0100)
-          dst[21] |= bb;
+          dst[21] |= mask;
         dst += 24;
       }
     }
   }
+
+#endif // end SAMD
 
   staged = true;
 }
 
 void Adafruit_NeoPXL8::show(void) {
   while (sending)
-    ; // Wait for DMA callback
+    ; // Wait for DMA IRQ
   if (!staged)
     stage(); // Convert data
-  dma.startJob();
   staged = false;
   sending = 1;
+
+#if defined(ARDUINO_ARCH_RP2040)
+
+  pio_sm_clear_fifos(pio, sm);                  // Clear TX FIFO just in case
+  while ((micros() - lastBitTime) <= LATCHTIME) // Wait for latch
+    ;
+  dma_channel_start(dma_channel); // Start new transfer
+
+#else // SAMD
+
+  dma.startJob();
   // Wait for latch, factor in EXTRASTARTBYTES transmission time too!
   while ((micros() - lastBitTime) <= (LATCHTIME - (EXTRASTARTBYTES * 5 / 4)))
     ;
-  dma.trigger();
+  dma.trigger(); // Start new transfer
+
+#endif // end SAMD
 }
 
 // Returns true if DMA transfer is NOT presently occurring.
@@ -382,78 +577,64 @@ void Adafruit_NeoPXL8::show(void) {
 // DMA parallel output format) once the current frame has finished
 // transmitting, rather than being done at the beginning of the show()
 // function (the staging conversion isn't entirely deterministic).
-boolean Adafruit_NeoPXL8::canStage(void) { return !sending; }
+boolean Adafruit_NeoPXL8::canStage(void) const { return !sending; }
 
 // Returns true if DMA transfer is NOT presently occurring and
 // NeoPixel EOD latch has fully transpired; library is idle.
-boolean Adafruit_NeoPXL8::canShow(void) {
+boolean Adafruit_NeoPXL8::canShow(void) const {
   return !sending && ((micros() - lastBitTime) > 300);
-}
-
-// Brightness is stored differently here than in normal NeoPixel library.
-// In either case it's *specified* the same: 0 (off) to 255 (brightest).
-// Classic NeoPixel rearranges this internally so 0 is max, 1 is off and
-// 255 is just below max...it's a decision based on how fixed-point math
-// is handled in that code.  Here it's stored internally as 1 (off) to
-// 256 (brightest), requiring a 16-bit value.
-
-void Adafruit_NeoPXL8::setBrightness(uint8_t b) {
-  brightness = (uint16_t)b + 1; // 0-255 in, 1-256 out
-}
-
-uint8_t Adafruit_NeoPXL8::getBrightness(void) const {
-  return brightness - 1; // 1-256 in, 0-255 out
 }
 
 /*--------------------------------------------------------------------------
 Some notes on How It Works (and doesn't work):
 
-SAMD21 DMA has no path to the GPIO PORT registers.  Instead, one of the
+SAMD21 DMA has no path to the GPIO PORT registers. Instead, one of the
 DMA-capable peripherals is exploited for byte-wide concurrent output
 (specifically the TCC0 pattern generator, which is normally used for
-motor control or some such).
+motor control or some such). Although SAMD51 does have PORT DMA, the
+pattern generator approach is used there regardless, so similar code
+can be used for both chips. On RP2040, PIO code is used.
 
 To issue 8 bits in parallel, all bytes of NeoPixel data must be "turned
 sideways" in RAM so all the bit 7's are issued concurrently, then all
-the bit 6's, bit 5's and so forth.  Not a problem, and in fact we use this
+the bit 6's, bit 5's and so forth. Not a problem, and in fact we use this
 opportunity to remap pins to strips (e.g. any of the 8 pins can be the
 "first" of the pixels in RAM, and so forth, so you can do routing/wiring
-however's easiest).  A timer/counter is used to issue the data at a
-measured rate as required of NeoPixels.
+however's easiest). On SAMD, timer/counter is used to issue the data at
+a measured rate as required of NeoPixels.
 
-The bad news is that the high and low states at the start/end of each
-NeoPixel bit are also issued this way and need to be part of the DMA
+The bad news for SAMD is that the high and low states at the start/end of
+each NeoPixel bit are also issued this way and need to be part of the DMA
 output buffer, and this incurs a hefty RAM footprint, about 4X the space
 required for the "normal" NeoPixel library (1X for the regular NeoPixel
 buffer which we still use, plus another 3X for the DMA expansion) -- so
 each RGB pixel needs about 12 bytes RAM, or 16 bytes for RGBW pixels.
-The SAMD21 has gobs of RAM so we can kind of get away with this (over
-2,000 RGB pixels across eight 250-pixel strands), though bloaty and
-not optimal.  Also, a uniform 1:3 timing is used for the high/data/low
-states, which doesn't precisely match the NeoPixel datasheet.  It's close
+The SAMD21 and '51 have gobs of RAM so we can kind of get away with this
+(over 2,000 RGB pixels across eight 250-pixel strands), though bloaty and
+not optimal. Also, a uniform 1:3 timing is used for the high/data/low
+states, which doesn't precisely match the NeoPixel datasheet. It's close
 enough in most cases, but I have seen very occasional glitches on the
 first pixel of each strand (but this might just be logic levels, I'm
-testing without a shifter).  I'd recommend experimenting with the library
+testing without a shifter). I'd recommend experimenting with the library
 a bit on a small scale before commiting to any large hardware investment
 around it.
 
-In *theory* it should be possible to get better timing and reduce the RAM
-requirements by using 3 DMA channels -- one to issue the initial 'high'
-logic level, one for the bit states, and one for the 'low' level at the
-end of each bit (the former and latter can be "reused" each time, not
-requiring a copy for every byte out), triggered by the timer overflow and
-two counter-compare matches -- and in fact if you look at Paul Stoffregen's
-OctoWS2811 library (which handles a similar task on somewhat different
-hardware) you'll see that's iexactly what's being done there.
-Unfortunately and for whatever reason, it looks as though the "round-robin"
-DMA arbitration on the SAMD21 doesn't work in combination with timer
-triggers.  I can get a single DMA channel triggered off a timer (as
-currently done in this code), or multiple channels going round-robin at
-full tilt, ignoring the timer.  This means either A) tough beans, that's
-just how it works on this device, or B) I'm doing something incredibly
-dumb, and despite trying just about everything can't figure out round-
-robin arbitration on a beat timer.  If anyone can offer insights there,
-or point to a SAMD21-compatible example, I'd be immensely grateful, as
-it'd reduce the library's RAM requirements by a factor of 2 and we could
-handle even MOAR pixels.
+Again, for SAMD, in *theory* it should be possible to get better timing and
+reduce the RAM requirements by using 3 DMA channels -- one to issue the
+initial 'high' logic level, one for the bit states, and one for the 'low'
+level at the end of each bit (the former and latter can be "reused" each
+time, not requiring a copy for every byte out), triggered by the timer
+overflow and two counter-compare matches -- and in fact if you look at Paul
+Stoffregen's OctoWS2811 library (which handles a similar task on different
+hardware) you'll see that's iexactly what's being done there. Unfortunately
+and for whatever reason, it looks as though the "round-robin" DMA
+arbitration on SAMD doesn't work in combination with timer triggers. I can
+get a single DMA channel triggered off a timer (as currently done in this
+code), or multiple channels going round-robin at full tilt, ignoring the
+timer. This means either A) tough beans, that's just how it works on this
+device, or B) I'm doing something incredibly wrong, and despite trying just
+about everything can't figure out round-robin arbitration on a beat timer.
+If anyone can offer insights there, or point to a SAMD21-compatible example,
+I'd be immensely grateful, as it'd reduce the library's RAM requirements by
+a factor of 2 and we could handle even MOAR pixels.
 ----------------------------------------------------------------------------*/
