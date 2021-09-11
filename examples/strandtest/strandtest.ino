@@ -6,7 +6,8 @@
 // Also requires LATEST Adafruit_NeoPixel and Adafruit_ZeroDMA libraries.
 
 // May require a logic level shifter (e.g. 75HCT245) for 5V pixels,
-// or use NeoPXL8 Featherwing for Adafruit Feather M0 boards.
+// or use NeoPXL8 Featherwing for Adafruit Feather M0 boards,
+// or there's a different FeatherWing for Feather M4.
 
 #include <Adafruit_NeoPXL8.h>
 
@@ -31,12 +32,17 @@ Adafruit_NeoPXL8 leds(NUM_LED, NULL, NEO_GRB);
 
 // 5 pins on the M0 Featherwing have reconfigurable jumpers, in case the
 // default pin connections interfere with a needed peripheral (Serial1,
-// I2C or SPI).  You do NOT need to use all 5 alternates; you can pick
+// I2C or SPI). You do NOT need to use all 5 alternates; you can pick
 // and choose as needed!  But if changing all 5, they would be:
 //int8_t pins[8] = { 12, 10, 11, 13, SCK, MOSI, A4, A3 };
 
 // And again, reverse the order for OctoWS2811-compatible cabling:
 // int8_t pins[8] = { A3, A4, MOSI, SCK, 13, 11, 10, 12 };
+
+// Here's a pinout that works with the Feather M4 (w/NeoPXL8 M4 FeatherWing):
+//int8_t pins[8] = { 13, 12, 11, 10, SCK, 5, 9, 6 };
+// Alternates are available for the last 4 pins:
+//int8_t pins[8] = { 13, 12, 11, 10, PIN_SERIAL1_RX, PIN_SERIAL1_TX, SCL, SDA };
 
 // Here's a pinout that works on the Metro M4:
 //int8_t pins[8] = { 7, 4, 5, 6, 3, 2, 10, 11 };
@@ -44,15 +50,25 @@ Adafruit_NeoPXL8 leds(NUM_LED, NULL, NEO_GRB);
 //int8_t pins[8] = { 9, 8, 0, 1, 13, 12, -1, SCK };
 // MOSI *should* work for bit 6, but does not. Datasheet error?
 
-// Here's a pinout that works with the Feather M4 (w/NeoPXL8 M4 FeatherWing):
-//int8_t pins[8] = { 13, 12, 11, 10, SCK, 5, 9, 6 };
-// Alternates are available for the last 4 pins:
-//int8_t pins[8] = { 13, 12, 11, 10, PIN_SERIAL1_RX, PIN_SERIAL1_TX, SCL, SDA };
-
 // For Grand Central, here are primary and alternate pin options:
 //int8_t pins[8] = { 30, 31, 32, 33, 36, 37, 34, 35 };
 //int8_t pins[8] = { 30, 31, 32, 33, 15, 14, 27, 26 };
 
+// RP2040 requires Philhower core (not Arduino mbed core).
+// For Raspberry Pi Pico, you can use any 8 contiguous GPIO pins
+// (e.g. the default 0-7) with a level shifter. For others,
+// always use GP## indices, these aren't necessarily the same as
+// pin numbers silkscreened on some boards!
+// The M4 FeatherWing *almost* aligns with the Feather RP2040,
+// but requires cutting the trace between the "n0" SCK selector
+// pad, then soldering a wire from the n0 center pad (no via)
+// to D4. Can then use this table to access all 8 outputs:
+//int8_t pins[8] = { 6, 7, 9, 8, 13, 12, 11, 10 }; // GP## indices!
+//Adafruit_NeoPXL8 leds(NUM_LED, pins, NEO_GRB);
+// On Feather RP2040, that's pins 4, 5, 9, 6, 13, 12, 11, 10.
+// There are no alternate pins for Feather RP2040, since this is
+// the only 8-contiguous-bits combination, though of course the
+// "reverse list for OctoWS2811 cabling" rule applies.
 
 void setup() {
   leds.begin();
@@ -99,4 +115,3 @@ uint32_t rain(uint8_t row, int pixelNum) {
          ((uint32_t)gamma8[(colors[row][1] * b) >> 8] <<  8) |
                     gamma8[(colors[row][2] * b) >> 8];
 }
-
