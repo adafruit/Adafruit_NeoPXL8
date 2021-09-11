@@ -92,7 +92,7 @@ static volatile boolean sending = 0;  // Set while DMA transfer is active
 static volatile uint32_t lastBitTime; // micros() when last bit issued
 
 Adafruit_NeoPXL8::Adafruit_NeoPXL8(uint16_t n, int8_t *p, neoPixelType t)
-    : Adafruit_NeoPixel(n * 8, -1, t), brightness(256), dmaBuf(NULL) {
+    : Adafruit_NeoPixel(n * 8, -1, t), dmaBuf(NULL), brightness(256) {
   memcpy(pins, p ? p : defaultPins, sizeof(pins));
 }
 
