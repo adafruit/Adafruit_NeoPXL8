@@ -218,7 +218,7 @@ static struct {
 // Given a pin number, locate corresponding entry in the pin map table
 // above, configure as a pattern generator output and return bitmask
 // for later data conversion (returns 0 if invalid pin).
-static uint8_t configurePin(uint8_t pin) {
+static uint8_t configurePin(int8_t pin) {
   if ((pin >= 0) && (pin < PINS_COUNT)) {
     EPortType port = g_APinDescription[pin].ulPort;
     uint8_t bit = g_APinDescription[pin].ulPin;
@@ -422,7 +422,7 @@ boolean Adafruit_NeoPXL8::begin(void) {
 
       uint8_t enableMask = 0x00; // Bitmask of pattern gen outputs
       for (i = 0; i < 8; i++) {
-        if (bitmask[i] = configurePin(pins[i]))
+        if ((bitmask[i] = configurePin(pins[i])))  // assign AND test!
           enableMask |= bitmask[i];
       }
       TCC0->PATT.vec.PGV = 0; // Set all pattern outputs to 0
