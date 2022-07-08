@@ -1,20 +1,24 @@
+// SPDX-FileCopyrightText: 2017 P Burgess for Adafruit Industries
+//
+// SPDX-License-Identifier: MIT
+
 /*!
  * @file Adafruit_NeoPXL8.cpp
  *
- * @mainpage 8-way concurrent DMA NeoPixel library for SAMD21, SAMD51 and
- * RP2040 microcontrollers.
+ * @mainpage 8-way concurrent DMA NeoPixel library for SAMD21, SAMD51,
+ * RP2040 and ESP32S3 microcontrollers.
  *
  * @section intro_sec Introduction
  *
  * Adafruit_NeoPXL8 is an Arduino library that leverages hardware features
  * unique to some Atmel SAMD21 and SAMD51 microcontrollers, plus the
- * Raspberry Pi RP2040 chip, to communicate with large numbers of NeoPixels
- * with very low CPU utilization and without losing track of time.
- * It was originally designed for the Adafruit Feather M0 board with NeoPXL8
- * FeatherWing interface/adapter, but may be applicable to other situations
- * (e.g. Arduino Zero, Adafruit Metro M0, etc., using logic level-shifting
- * as necessary). A different FeatherWing with pinout specific to the
- * Feather M4 is also available.
+ * Raspberry Pi RP2040 and Espressif ESP32S3 (not S2, etc.) chips, to
+ * communicate with large numbers of NeoPixels with very low CPU utilization
+ * and without losing track of time. It was originally designed for the
+ * Adafruit Feather M0 board with NeoPXL8 FeatherWing interface/adapter,
+ * but may be applicable to other situations (e.g. Arduino Zero, Adafruit
+ * Metro M0, etc., using logic level-shifting as necessary). A different
+ * FeatherWing with pinout specific to the Feather M4 is also available.
  *
  * NeoPXL8 FeatherWing M0: https://www.adafruit.com/product/3249
  * NeoPXL8 FeatherWing M4: https://www.adafruit.com/product/4537
@@ -31,6 +35,11 @@
  * Additionally, NeoPXL8 has nondestructive brightness scaling...unlike
  * classic NeoPixel, getPixelColor() here always returns the original value
  * as was passed to setPixelColor().
+ *
+ * Adafruit_NeoPXL8HDR is a subclass of Adafruit_NeoPXL8 adding 16-bits-
+ * per-channel color support, temporal dithering, frame blending and
+ * gamma correction. This requires inordinate RAM, and the frequent need
+ * for refreshing makes it best suited for multi-core chips (e.g. RP2040).
  *
  * RP2040 support requires Philhower core (not Arduino mbed core).
  * Also on RP2040, pin numbers passed to constructor are GP## indices,
@@ -68,11 +77,6 @@
 #include "Adafruit_NeoPXL8.h"
 #include "wiring_private.h" // pinPeripheral() function
 
-// 300 uS latch time supports current WS2812B LEDs. Earlier generations
-// and 'compatible' devices work at 50 uS, feel free to change this if you
-// know for certain your LEDs are compatible.
-#define LATCHTIME 300 ///< Time, in microseconds, for end-of-data latch
-
 // SAMD DMA transfer using TCC0 as beat clock seems to stutter on the first
 // few elements out, which can botch the delicate NeoPixel timing. A few
 // initial zero bytes are issued to give DMA time to stabilize. The number
@@ -88,21 +92,23 @@
 // due to signal reshaping through the 1st.
 
 static const int8_t defaultPins[] = {0, 1, 2, 3, 4, 5, 6, 7};
-static volatile boolean sending = 0;  // Set while DMA transfer is active
+static volatile bool sending = 0;     // Set while DMA transfer is active
 static volatile uint32_t lastBitTime; // micros() when last bit issued
 
+// NEOPXL8 CLASS -----------------------------------------------------------
+
 Adafruit_NeoPXL8::Adafruit_NeoPXL8(uint16_t n, int8_t *p, neoPixelType t)
-    : Adafruit_NeoPixel(n * 8, -1, t), dmaBuf(NULL), brightness(256) {
+    : Adafruit_NeoPixel(n * 8, -1, t), brightness(256) {
   memcpy(pins, p ? p : defaultPins, sizeof(pins));
 }
-
-#if defined(ARDUINO_ARCH_RP2040)
 
 // A couple elements of the NeoPXL8 struct must be accessed in the DMA IRQ,
 // which is outside the class. A pointer to the active NeoPXL8 is kept, so
 // we can call a member function (also gets us around some protected access).
 // This does mean only a single NeoPXL8 can be active, as on SAMD.
 static Adafruit_NeoPXL8 *neopxl8_ptr = NULL;
+
+#if defined(ARDUINO_ARCH_RP2040)
 
 // PIO code. As currently written, uses 2/9 and 5/9 duty cycle for '0' and
 // '1' bits respectively. This does not match the datasheet, but works well
@@ -125,11 +131,10 @@ static const struct pio_program neopxl8_program = {
     .origin = -1,
 };
 
-// Called at end of DMA transfer. Clears 'sending' flag and notes
-// start-of-NeoPixel-latch time.
+// Called at end of DMA transfer. Clears 'sending' flag and notes start of
+// NeoPixel latch time. Done as a callback (from the IRQ below) because
+// needs access to a protected NeoPXL8 member (dma_channel).
 void Adafruit_NeoPXL8::dma_callback() {
-  // Reset DMA source address for next transfer
-  dma_channel_set_read_addr(dma_channel, dmaBuf, false);
   dma_hw->ints0 = 1u << dma_channel; // Clear IRQ
   lastBitTime = micros();
   sending = 0;
@@ -139,6 +144,27 @@ static void dma_finish_irq(void) {
   if (neopxl8_ptr) {
     neopxl8_ptr->dma_callback();
   }
+}
+
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
+
+// Callback for end-of-DMA-transfer
+static IRAM_ATTR bool dma_callback(gdma_channel_handle_t dma_chan,
+                                   gdma_event_data_t *event_data,
+                                   void *user_data) {
+  // DMA callback seems to occur a moment before the last data has issued
+  // (perhaps buffering between DMA and the LCD peripheral?), so pause a
+  // moment before clearing the lcd_start flag. This figure was determined
+  // empirically, not science...may need to increase if last-pixel trouble.
+  esp_rom_delay_us(5);
+  LCD_CAM.lcd_user.lcd_start = 0;
+  // lastBitTime is NOT set in the callback because it would periodically
+  // have a 'too early' value. Instead, it's set in the show() function
+  // after the lcd_start flag is clear...which shouldn't make a difference,
+  // but does. The result is that it's periodically 'too late' in that
+  // case...but this just results in an infrequent slightly-long latch,
+  // rather than a too-short one that could cause refresh problems.
+  return true;
 }
 
 #else // SAMD
@@ -235,7 +261,6 @@ static uint8_t configurePin(int8_t pin) {
 // Called at end of DMA transfer. Clears 'sending' flag and notes
 // start-of-NeoPixel-latch time.
 static void dmaCallback(Adafruit_ZeroDMA *dma) {
-  (void)(dma); // just get rid of unused arg warning
   lastBitTime = micros();
   sending = 0;
 }
@@ -245,25 +270,32 @@ static void dmaCallback(Adafruit_ZeroDMA *dma) {
 Adafruit_NeoPXL8::~Adafruit_NeoPXL8() {
 #if defined(ARDUINO_ARCH_RP2040)
   dma_channel_abort(dma_channel);
-  neopxl8_ptr = NULL;
+  if (dmaBuf[0])
+    free(dmaBuf[0]);
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
+  gdma_reset(dma_chan);
+  if (allocAddr)
+    free(allocAddr);
 #else
   dma.abort();
+  if (allocAddr)
+    free(allocAddr);
 #endif
-  if (dmaBuf)
-    free(dmaBuf);
+  neopxl8_ptr = NULL;
 }
 
 #if defined(ARDUINO_ARCH_RP2040)
-boolean Adafruit_NeoPXL8::begin(PIO pio_instance) {
+bool Adafruit_NeoPXL8::begin(bool dbuf, PIO pio_instance) {
 #else
-boolean Adafruit_NeoPXL8::begin(void) {
+bool Adafruit_NeoPXL8::begin(bool dbuf) {
 #endif
   Adafruit_NeoPixel::begin(); // Call base class begin() function 1st
   if (pixels) {               // Successful malloc of NeoPixel buffer?
     uint8_t bytesPerPixel = (wOffset == rOffset) ? 3 : 4;
-    uint32_t bytesTotal;
 
     memset(bitmask, 0, sizeof(bitmask));
+
+    neopxl8_ptr = this; // Save object pointer for interrupt
 
 #if defined(ARDUINO_ARCH_RP2040)
 
@@ -281,10 +313,13 @@ boolean Adafruit_NeoPXL8::begin(void) {
       return false;
     }
 
-    neopxl8_ptr = this; // Save object pointer for interrupt
+    uint32_t buf_size = numLEDs * bytesPerPixel;
+    uint32_t alloc_size = dbuf ? buf_size * 2 : buf_size;
 
-    bytesTotal = numLEDs * bytesPerPixel;
-    if ((dmaBuf = (uint8_t *)malloc(bytesTotal))) {
+    if ((dmaBuf[0] = (uint8_t *)malloc(alloc_size))) {
+
+      // If no double buffering, point both to same space
+      dmaBuf[1] = dbuf ? &dmaBuf[0][buf_size] : dmaBuf[0];
 
       // Set up PIO outputs
       uint32_t pindir_mask = 0;
@@ -325,9 +360,9 @@ boolean Adafruit_NeoPXL8::begin(void) {
       // Set DMA trigger
       channel_config_set_dreq(&dma_config, pio_get_dreq(pio, sm, true));
       dma_channel_configure(dma_channel, &dma_config,
-                            &pio->txf[sm], // dest
-                            dmaBuf,        // src
-                            bytesTotal, false);
+                            &pio->txf[sm],      // dest
+                            dmaBuf[dbuf_index], // src
+                            buf_size, false);
       // Set up end-of-DMA interrupt
       irq_set_exclusive_handler(DMA_IRQ_0, dma_finish_irq);
       dma_channel_set_irq0_enabled(dma_channel, true);
@@ -336,108 +371,236 @@ boolean Adafruit_NeoPXL8::begin(void) {
       return true; // Success!
     }
 
-#else // SAMD
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
 
-    bytesTotal = numLEDs * bytesPerPixel * 3 + EXTRASTARTBYTES + 3;
-    if ((dmaBuf = (uint8_t *)malloc(bytesTotal))) {
-      int i;
+    uint32_t xfer_size = numLEDs * bytesPerPixel * 3;
+    uint32_t buf_size = xfer_size + 3;        // +3 for long align
+    int num_desc = (xfer_size + 4094) / 4095; // sic. (NOT 4096)
+    uint32_t alloc_size =
+        num_desc * sizeof(dma_descriptor_t) + (dbuf ? buf_size * 2 : buf_size);
 
-      dma.setTrigger(TCC0_DMAC_ID_OVF);
-      dma.setAction(DMA_TRIGGER_ACTON_BEAT);
+    if ((allocAddr = (uint8_t *)malloc(alloc_size))) {
 
-      // Get address of first byte that's on a 32-bit boundary
-      // and at least EXTRASTARTBYTES into dmaBuf...
-      alignedAddr = (uint32_t *)((uint32_t)(&dmaBuf[EXTRASTARTBYTES + 3]) & ~3);
-      // DMA transfer then starts EXTRABYTES back from this to stabilize
-      uint8_t *startAddr = (uint8_t *)alignedAddr - EXTRASTARTBYTES;
-      memset(startAddr, 0, EXTRASTARTBYTES); // Initialize start with zeros
+      // Find first 32-bit aligned address following descriptor list
+      alignedAddr[0] =
+          (uint32_t
+               *)((uint32_t)(
+                      &allocAddr[num_desc * sizeof(dma_descriptor_t) + 3]) &
+                  ~3);
+      dmaBuf[0] = (uint8_t *)alignedAddr[0];
 
-      uint8_t *dst = &((uint8_t *)(&TCC0->PATT))[1]; // PAT.vec.PGV
-      dma.allocate();
-      dma.addDescriptor(startAddr, // source
-                        dst,       // destination
-                        bytesTotal -
-                            3, // count (don't include long-alignment bytes!)
-                        DMA_BEAT_SIZE_BYTE, // size per
-                        true,               // increment source
-                        false);             // don't increment destination
-
-      dma.setCallback(dmaCallback);
-
-#ifdef __SAMD51__
-      // Set up generic clock gen 2 as source for TCC0
-      // Datasheet recommends setting GENCTRL register in a single write,
-      // so a temp value is used here to more easily construct a value.
-      GCLK_GENCTRL_Type genctrl;
-      genctrl.bit.SRC = GCLK_GENCTRL_SRC_DFLL_Val; // 48 MHz source
-      genctrl.bit.GENEN = 1;                       // Enable
-      genctrl.bit.OE = 1;
-      genctrl.bit.DIVSEL = 0; // Do not divide clock source
-      genctrl.bit.DIV = 0;
-      GCLK->GENCTRL[2].reg = genctrl.reg;
-      while (GCLK->SYNCBUSY.bit.GENCTRL1 == 1)
-        ;
-
-      GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN = 0;
-      while (GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN)
-        ; // Wait for disable
-      GCLK_PCHCTRL_Type pchctrl;
-      pchctrl.bit.GEN = GCLK_PCHCTRL_GEN_GCLK2_Val;
-      pchctrl.bit.CHEN = 1;
-      GCLK->PCHCTRL[TCC0_GCLK_ID].reg = pchctrl.reg;
-      while (!GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN)
-        ; // Wait for enable
-#else
-      // Enable GCLK for TCC0
-      GCLK->CLKCTRL.reg =
-          (uint16_t)(GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 |
-                     GCLK_CLKCTRL_ID(GCM_TCC0_TCC1));
-      while (GCLK->STATUS.bit.SYNCBUSY == 1)
-        ;
-#endif
-
-      // Disable TCC before configuring it
-      TCC0->CTRLA.bit.ENABLE = 0;
-      while (TCC0->SYNCBUSY.bit.ENABLE)
-        ;
-
-      TCC0->CTRLA.bit.PRESCALER = TCC_CTRLA_PRESCALER_DIV1_Val; // 1:1 Prescale
-
-      TCC0->WAVE.bit.WAVEGEN = TCC_WAVE_WAVEGEN_NPWM_Val; // Normal PWM mode
-      while (TCC0->SYNCBUSY.bit.WAVE)
-        ;
-
-      TCC0->CC[0].reg = 0; // No PWM out
-      while (TCC0->SYNCBUSY.bit.CC0)
-        ;
-
-        // 2.4 GHz clock: 3 DMA xfers per NeoPixel bit = 800 KHz
-#ifdef __SAMD51__
-      TCC0->PER.reg = ((48000000 + 1200000) / 2400000) - 1;
-#else
-      TCC0->PER.reg = ((F_CPU + 1200000) / 2400000) - 1;
-#endif
-      while (TCC0->SYNCBUSY.bit.PER)
-        ;
-
-      uint8_t enableMask = 0x00; // Bitmask of pattern gen outputs
-      for (i = 0; i < 8; i++) {
-        if ((bitmask[i] = configurePin(pins[i]))) // assign AND test!
-          enableMask |= bitmask[i];
+      if (dbuf) {
+        // Find 32-bit aligned address following first DMA buffer
+        alignedAddr[1] =
+            (uint32_t *)((uint32_t)(&alignedAddr[0][buf_size]) & ~3);
+      } else {
+        alignedAddr[1] = alignedAddr[0];
       }
-      TCC0->PATT.vec.PGV = 0; // Set all pattern outputs to 0
-      while (TCC0->SYNCBUSY.bit.PATT)
-        ;
-      TCC0->PATT.vec.PGE = enableMask; // Enable pattern outputs
-      while (TCC0->SYNCBUSY.bit.PATT)
-        ;
+      dmaBuf[1] = (uint8_t *)alignedAddr[1];
 
-      TCC0->CTRLA.bit.ENABLE = 1;
-      while (TCC0->SYNCBUSY.bit.ENABLE)
-        ;
+      // LCD_CAM isn't enabled by default -- MUST begin with this:
+      periph_module_enable(PERIPH_LCD_CAM_MODULE);
+      periph_module_reset(PERIPH_LCD_CAM_MODULE);
+
+      // Reset LCD bus
+      LCD_CAM.lcd_user.lcd_reset = 1;
+      esp_rom_delay_us(100);
+
+      // Configure LCD clock
+      LCD_CAM.lcd_clock.clk_en = 1;             // Enable clock
+      LCD_CAM.lcd_clock.lcd_clk_sel = 2;        // PLL240M source
+      LCD_CAM.lcd_clock.lcd_clkm_div_a = 1;     // 1/1 fractional divide,
+      LCD_CAM.lcd_clock.lcd_clkm_div_b = 1;     // plus '99' below yields...
+      LCD_CAM.lcd_clock.lcd_clkm_div_num = 99;  // 1:100 prescale (2.4 MHz CLK)
+      LCD_CAM.lcd_clock.lcd_ck_out_edge = 0;    // PCLK low in 1st half cycle
+      LCD_CAM.lcd_clock.lcd_ck_idle_edge = 0;   // PCLK low idle
+      LCD_CAM.lcd_clock.lcd_clk_equ_sysclk = 1; // PCLK = CLK (ignore CLKCNT_N)
+
+      // Configure frame format
+      LCD_CAM.lcd_ctrl.lcd_rgb_mode_en = 0;    // i8080 mode (not RGB)
+      LCD_CAM.lcd_rgb_yuv.lcd_conv_bypass = 0; // Disable RGB/YUV converter
+      LCD_CAM.lcd_misc.lcd_next_frame_en = 0;  // Do NOT auto-frame
+      LCD_CAM.lcd_data_dout_mode.val = 0;      // No data delays
+      LCD_CAM.lcd_user.lcd_always_out_en = 1;  // Enable 'always out' mode
+      LCD_CAM.lcd_user.lcd_8bits_order = 0;    // Do not swap bytes
+      LCD_CAM.lcd_user.lcd_bit_order = 0;      // Do not reverse bit order
+      LCD_CAM.lcd_user.lcd_2byte_en = 0;       // 8-bit data mode
+      LCD_CAM.lcd_user.lcd_dummy = 1;          // Dummy phase(s) @ LCD start
+      LCD_CAM.lcd_user.lcd_dummy_cyclelen = 0; // 1 dummy phase
+      LCD_CAM.lcd_user.lcd_cmd = 0;            // No command at LCD start
+      // Dummy phase(s) MUST be enabled for DMA to trigger reliably.
+
+      const uint8_t mux[] = {
+          LCD_DATA_OUT0_IDX, LCD_DATA_OUT1_IDX, LCD_DATA_OUT2_IDX,
+          LCD_DATA_OUT3_IDX, LCD_DATA_OUT4_IDX, LCD_DATA_OUT5_IDX,
+          LCD_DATA_OUT6_IDX, LCD_DATA_OUT7_IDX,
+      };
+
+      // Route LCD signals to GPIO pins
+      for (int i = 0; i < 8; i++) {
+        if (pins[i] >= 0) {
+          esp_rom_gpio_connect_out_signal(pins[i], mux[i], false, false);
+          gpio_hal_iomux_func_sel(GPIO_PIN_MUX_REG[pins[i]], PIN_FUNC_GPIO);
+          gpio_set_drive_capability((gpio_num_t)pins[i], (gpio_drive_cap_t)3);
+          bitmask[i] = 1 << i;
+        }
+      }
+
+      // Set up DMA descriptor list (length and data are set before xfer)
+      desc = (dma_descriptor_t *)allocAddr; // At start of alloc'd buffer
+      for (int i = 0; i < num_desc; i++) {
+        desc[i].dw0.owner = DMA_DESCRIPTOR_BUFFER_OWNER_DMA;
+        desc[i].dw0.suc_eof = 0;
+        desc[i].next = &desc[i + 1];
+      }
+      desc[num_desc - 1].dw0.suc_eof = 1;
+      desc[num_desc - 1].next = NULL;
+
+      // Alloc DMA channel & connect it to LCD periph
+      gdma_channel_alloc_config_t dma_chan_config = {
+          .sibling_chan = NULL,
+          .direction = GDMA_CHANNEL_DIRECTION_TX,
+          .flags = {.reserve_sibling = 0}};
+      gdma_new_channel(&dma_chan_config, &dma_chan);
+      gdma_connect(dma_chan, GDMA_MAKE_TRIGGER(GDMA_TRIG_PERIPH_LCD, 0));
+      gdma_strategy_config_t strategy_config = {.owner_check = false,
+                                                .auto_update_desc = false};
+      gdma_apply_strategy(dma_chan, &strategy_config);
+
+      // Enable DMA transfer callback
+      gdma_tx_event_callbacks_t tx_cbs = {.on_trans_eof = dma_callback};
+      gdma_register_tx_event_callbacks(dma_chan, &tx_cbs, NULL);
 
       return true; // Success!
     }
+
+#else // SAMD
+
+  // Double-buffered DMA out is currently NOT supported on SAMD.
+  // Code's there but it causes weird flickering. All the pointer
+  // work looks right, I'm just speculating that this might have
+  // something to do with HDR refresh being timer interrupt-driven,
+  // that certain elements of the class might need to be declared
+  // volatile, which currently causes compilation mayhem.
+  // What with the timer interrupt, and needing to share cycles
+  // with the main thread of execution, I'm not sure it's helpful
+  // on SAMD anyway, mostly an RP2040 thing.
+  dbuf = false;
+
+  uint32_t buf_size = numLEDs * bytesPerPixel * 3 + EXTRASTARTBYTES + 3;
+  uint32_t alloc_size = dbuf ? buf_size * 2 : buf_size;
+
+  if ((allocAddr = (uint8_t *)malloc(buf_size))) {
+    int i;
+
+    dma.setTrigger(TCC0_DMAC_ID_OVF);
+    dma.setAction(DMA_TRIGGER_ACTON_BEAT);
+
+    // Get address of first byte that's on a 32-bit boundary and at least
+    // EXTRASTARTBYTES into dmaBuf. This is where pixel data starts.
+    alignedAddr[0] =
+        (uint32_t *)((uint32_t)(&allocAddr[EXTRASTARTBYTES + 3]) & ~3);
+
+    // DMA transfer then starts EXTRABYTES back from this to stabilize
+    dmaBuf[0] = (uint8_t *)alignedAddr[0] - EXTRASTARTBYTES;
+    memset(dmaBuf[0], 0, EXTRASTARTBYTES); // Initialize start with zeros
+
+    if (dbuf) {
+      alignedAddr[1] =
+          (uint32_t *)((uint32_t)(&allocAddr[buf_size + EXTRASTARTBYTES + 3]) &
+                       ~3);
+      dmaBuf[1] = (uint8_t *)alignedAddr[1] - EXTRASTARTBYTES;
+      memset(dmaBuf[1], 0, EXTRASTARTBYTES);
+    } else {
+      alignedAddr[1] = alignedAddr[0];
+      dmaBuf[1] = dmaBuf[0];
+    }
+
+    uint8_t *dst = &((uint8_t *)(&TCC0->PATT))[1]; // PAT.vec.PGV
+    dma.allocate();
+    desc = dma.addDescriptor(dmaBuf[dbuf_index], // source
+                             dst,                // destination
+                             buf_size -
+                                 3, // count (don't include alignment bytes!)
+                             DMA_BEAT_SIZE_BYTE, // size per
+                             true,               // increment source
+                             false);             // don't increment destination
+
+    dma.setCallback(dmaCallback);
+
+#ifdef __SAMD51__
+    // Set up generic clock gen 2 as source for TCC0
+    // Datasheet recommends setting GENCTRL register in a single write,
+    // so a temp value is used here to more easily construct a value.
+    GCLK_GENCTRL_Type genctrl;
+    genctrl.bit.SRC = GCLK_GENCTRL_SRC_DFLL_Val; // 48 MHz source
+    genctrl.bit.GENEN = 1;                       // Enable
+    genctrl.bit.OE = 1;
+    genctrl.bit.DIVSEL = 0; // Do not divide clock source
+    genctrl.bit.DIV = 0;
+    GCLK->GENCTRL[2].reg = genctrl.reg;
+    while (GCLK->SYNCBUSY.bit.GENCTRL1 == 1)
+      ;
+
+    GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN = 0;
+    while (GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN)
+      ; // Wait for disable
+    GCLK_PCHCTRL_Type pchctrl;
+    pchctrl.bit.GEN = GCLK_PCHCTRL_GEN_GCLK2_Val;
+    pchctrl.bit.CHEN = 1;
+    GCLK->PCHCTRL[TCC0_GCLK_ID].reg = pchctrl.reg;
+    while (!GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN)
+      ; // Wait for enable
+#else
+    // Enable GCLK for TCC0
+    GCLK->CLKCTRL.reg = (uint16_t)(GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 |
+                                   GCLK_CLKCTRL_ID(GCM_TCC0_TCC1));
+    while (GCLK->STATUS.bit.SYNCBUSY == 1)
+      ;
+#endif
+
+    // Disable TCC before configuring it
+    TCC0->CTRLA.bit.ENABLE = 0;
+    while (TCC0->SYNCBUSY.bit.ENABLE)
+      ;
+
+    TCC0->CTRLA.bit.PRESCALER = TCC_CTRLA_PRESCALER_DIV1_Val; // 1:1 Prescale
+
+    TCC0->WAVE.bit.WAVEGEN = TCC_WAVE_WAVEGEN_NPWM_Val; // Normal PWM mode
+    while (TCC0->SYNCBUSY.bit.WAVE)
+      ;
+
+    TCC0->CC[0].reg = 0; // No PWM out
+    while (TCC0->SYNCBUSY.bit.CC0)
+      ;
+
+      // 2.4 GHz clock: 3 DMA xfers per NeoPixel bit = 800 KHz
+#ifdef __SAMD51__
+    TCC0->PER.reg = ((48000000 + 1200000) / 2400000) - 1;
+#else
+    TCC0->PER.reg = ((F_CPU + 1200000) / 2400000) - 1;
+#endif
+    while (TCC0->SYNCBUSY.bit.PER)
+      ;
+
+    uint8_t enableMask = 0x00; // Bitmask of pattern gen outputs
+    for (i = 0; i < 8; i++) {
+      if ((bitmask[i] = configurePin(pins[i]))) // assign AND test!
+        enableMask |= bitmask[i];
+    }
+    TCC0->PATT.vec.PGV = 0; // Set all pattern outputs to 0
+    while (TCC0->SYNCBUSY.bit.PATT)
+      ;
+    TCC0->PATT.vec.PGE = enableMask; // Enable pattern outputs
+    while (TCC0->SYNCBUSY.bit.PATT)
+      ;
+
+    TCC0->CTRLA.bit.ENABLE = 1;
+    while (TCC0->SYNCBUSY.bit.ENABLE)
+      ;
+
+    return true; // Success!
+  }
 
 #endif // end SAMD
 
@@ -457,13 +620,13 @@ void Adafruit_NeoPXL8::stage(void) {
 
 #if defined(ARDUINO_ARCH_RP2040)
 
-  memset(dmaBuf, 0, numLEDs * bytesPerLED);
+  memset(dmaBuf[dbuf_index], 0, numLEDs * bytesPerLED);
 
   for (uint8_t b = 0; b < 8; b++) { // For each output pin 0-7
     uint8_t mask = bitmask[b];
     if (mask) {                                // Enabled?
       uint8_t *src = &pixels[b * bytesPerRow]; // Start of row data
-      uint8_t *dst = dmaBuf;
+      uint8_t *dst = dmaBuf[dbuf_index];
       for (i = 0; i < bytesPerRow; i++) { // Each byte in row...
         // Brightness scaling doesn't require shift down,
         // we'll just pluck from bits 15-8...
@@ -489,14 +652,14 @@ void Adafruit_NeoPXL8::stage(void) {
     }
   }
 
-#else // SAMD
+#else // SAMD or ESP32S3
 
   static const uint8_t dmaFill[] __attribute__((__aligned__(4))) = {
       0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00,
       0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0x00, 0x00};
 
   // Clear DMA buffer data (32-bit writes are used to save a few cycles)
-  uint32_t *in = (uint32_t *)dmaFill, *out = alignedAddr;
+  uint32_t *in = (uint32_t *)dmaFill, *out = alignedAddr[dbuf_index];
   for (i = 0; i < bytesPerRow; i++) {
     *out++ = in[0];
     *out++ = in[1];
@@ -510,7 +673,7 @@ void Adafruit_NeoPXL8::stage(void) {
     uint8_t mask = bitmask[b];
     if (mask) {                                // Enabled?
       uint8_t *src = &pixels[b * bytesPerRow]; // Start of row data
-      uint8_t *dst = &((uint8_t *)alignedAddr)[1];
+      uint8_t *dst = &((uint8_t *)alignedAddr[dbuf_index])[1];
       for (i = 0; i < bytesPerRow; i++) { // Each byte in row...
         // Brightness scaling doesn't require shift down,
         // we'll just pluck from bits 15-8...
@@ -536,39 +699,110 @@ void Adafruit_NeoPXL8::stage(void) {
     }
   }
 
-#endif // end SAMD
+#endif // end SAMD/ESP32S3
 
   staged = true;
 }
 
 void Adafruit_NeoPXL8::show(void) {
-  while (sending)
-    ; // Wait for DMA IRQ
-  if (!staged)
-    stage(); // Convert data
+  if (dmaBuf[0] == dmaBuf[1]) {
+    // Single-buffered operation. Must wait for current DMA transfer to
+    // complete before staging new data in the buffer, or it may get
+    // corrupted in mid-transfer.
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+    while (LCD_CAM.lcd_user.lcd_start)
+      ; // Wait for DMA IRQ
+    lastBitTime = micros();
+#else
+    while (sending)
+      ; // Wait for DMA IRQ
+#endif
+    if (!staged)
+      stage(); // Convert data
+  } else {
+    // Double-buffered operation, new data can be staged in alternating
+    // buffer while the current DMA transfer is in-progress.
+    if (!staged)
+      stage(); // Convert data
+      // Still have to wait for DMA to finish before latch check though.
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+    while (LCD_CAM.lcd_user.lcd_start)
+      ; // Wait for DMA IRQ
+    lastBitTime = micros();
+#else
+    while (sending)
+      ; // Wait for DMA IRQ
+#endif
+  }
   staged = false;
   sending = 1;
 
 #if defined(ARDUINO_ARCH_RP2040)
 
+  // Reset DMA source address for next transfer.
+  // Not sure what's up here, but if we don't delay a moment before
+  // changing the DMA read address, the last byte out is corrupted.
+  // It's possible the DMA callback gets invoked at the start of the
+  // last byte out, rather than end, or might have to do with the
+  // PIO FIFOs or something. Regardless, 10 uS fixes it.
+  if (dmaBuf[0] != dmaBuf[1])
+    delayMicroseconds(10);
+  dma_channel_set_read_addr(dma_channel, dmaBuf[dbuf_index], false);
+
   pio_sm_clear_fifos(pio, sm);                  // Clear TX FIFO just in case
-  while ((micros() - lastBitTime) <= LATCHTIME) // Wait for latch
+  while ((micros() - lastBitTime) <= latchtime) // Wait for latch
     ;
   dma_channel_start(dma_channel); // Start new transfer
 
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
+
+  gdma_reset(dma_chan);
+  LCD_CAM.lcd_user.lcd_dout = 1;
+  LCD_CAM.lcd_user.lcd_update = 1;
+  LCD_CAM.lcd_misc.lcd_afifo_reset = 1;
+
+  uint8_t bytesPerPixel = (wOffset == rOffset) ? 3 : 4;
+  uint32_t xfer_size = numLEDs * bytesPerPixel * 3;
+  int num_desc = (xfer_size + 4094) / 4095; // sic. (NOT 4096)
+
+  int bytesToGo = xfer_size;
+  int offset = 0;
+  for (int i = 0; i < num_desc; i++) {
+    int bytesThisPass = bytesToGo;
+    if (bytesThisPass > 4095)
+      bytesThisPass = 4095;
+    desc[i].dw0.size = desc[i].dw0.length = bytesThisPass;
+    desc[i].buffer = &dmaBuf[dbuf_index][offset];
+    bytesToGo -= bytesThisPass;
+    offset += bytesThisPass;
+  }
+
+  while ((micros() - lastBitTime) <= latchtime) // Wait for latch
+    ;
+
+  gdma_start(dma_chan, (intptr_t)&desc[0]);
+  esp_rom_delay_us(1);
+  LCD_CAM.lcd_user.lcd_start = 1; // Begin LCD DMA xfer
+
 #else // SAMD
+
+  // Reset DMA source address for next transfer
+  dma.changeDescriptor(desc, dmaBuf[dbuf_index], NULL, 0);
 
   dma.startJob();
   // Wait for latch, factor in EXTRASTARTBYTES transmission time too!
-  while ((micros() - lastBitTime) <= (LATCHTIME - (EXTRASTARTBYTES * 5 / 4)))
+  while ((micros() - lastBitTime) <=
+         ((uint32_t)latchtime - (EXTRASTARTBYTES * 5 / 4)))
     ;
   dma.trigger(); // Start new transfer
 
 #endif // end SAMD
+
+  dbuf_index ^= 1; // Swap buffer index for next staging pass
 }
 
 // Returns true if DMA transfer is NOT presently occurring.
-// We MAY (or not) be in the 300 uS EOD latch time, or might be idle.
+// We MAY (or not) be in the EOD latch time, or might be idle.
 // Either way, it's now safe to stage data from NeoPixel to DMA buffer.
 // This might be helpful for code that wants more precise and uniform
 // animation timing...it might be using a timer interrupt or micros()
@@ -577,12 +811,463 @@ void Adafruit_NeoPXL8::show(void) {
 // DMA parallel output format) once the current frame has finished
 // transmitting, rather than being done at the beginning of the show()
 // function (the staging conversion isn't entirely deterministic).
-boolean Adafruit_NeoPXL8::canStage(void) const { return !sending; }
+bool Adafruit_NeoPXL8::canStage(void) const {
+  // If double-buffering enabled, can always stage
+  return (dmaBuf[0] != dmaBuf[1]) || !sending;
+}
 
 // Returns true if DMA transfer is NOT presently occurring and
 // NeoPixel EOD latch has fully transpired; library is idle.
-boolean Adafruit_NeoPXL8::canShow(void) const {
-  return !sending && ((micros() - lastBitTime) > 300);
+bool Adafruit_NeoPXL8::canShow(void) const {
+  return !sending && ((micros() - lastBitTime) > latchtime);
+}
+
+// NEOPXL8HDR CLASS --------------------------------------------------------
+
+Adafruit_NeoPXL8HDR::Adafruit_NeoPXL8HDR(uint16_t n, int8_t *p, neoPixelType t)
+    : Adafruit_NeoPXL8(n, p, t) {}
+
+Adafruit_NeoPXL8HDR::~Adafruit_NeoPXL8HDR() {
+  if (dither_table)
+    free(dither_table);
+  if (pixel_buf[0])
+    free(pixel_buf[0]);
+}
+
+#if defined(ARDUINO_ARCH_RP2040)
+bool Adafruit_NeoPXL8HDR::begin(bool blend, uint8_t bits, bool dbuf,
+                                PIO pio_instance) {
+#else
+bool Adafruit_NeoPXL8HDR::begin(bool blend, uint8_t bits, bool dbuf) {
+#endif
+
+  // If blend flag is set, allocate 3X pixel buffers, else 2X (for
+  // temporal dithering only). Result is the buffer size in 16-bit
+  // words (not bytes).
+  uint32_t buf_size = numBytes * (blend ? 3 : 2);
+
+  dither_bits = (bits > 8) ? 8 : bits;
+
+  if ((pixel_buf[0] = (uint16_t *)malloc(buf_size * sizeof(uint16_t)))) {
+    if ((dither_table =
+             (uint16_t *)malloc((1 << dither_bits) * sizeof(uint16_t)))) {
+#if defined(ARDUINO_ARCH_RP2040)
+      if (Adafruit_NeoPXL8::begin(dbuf, pio_instance)) {
+        mutex_init(&mutex);
+#else
+      if (Adafruit_NeoPXL8::begin(dbuf)) {
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+        mutex = xSemaphoreCreateMutex();
+#endif // end ESP32S3
+#endif // end !RP2040
+
+        // All allocations & initializations were successful.
+        // Generate bit-flip table for ordered dithering...
+        for (int i = 0; i < (1 << dither_bits); i++) {
+          uint16_t result = 0;
+          for (uint8_t bit = 0; bit < dither_bits; bit++) {
+            result = (result << 1) | ((i >> bit) & 1);
+          }
+          dither_table[i] = result << (16 - dither_bits);
+        }
+        setBrightness(65535, 1.0); // Sets up gamma LUT (max bright, linear)
+        memset(pixel_buf[0], 0, buf_size * sizeof(uint16_t));
+        if (blend) {
+          // 3 pixel buffers (2 for blending & dithering, plus original)
+          pixel_buf[1] = &pixel_buf[0][numBytes];
+        } else {
+          // 2 pixel buffers (1 for dithering, 1 for original), but first 2
+          // indices of pixel_buf point to the same buffer so we can process
+          // it the same as when blending. Then index 2 always points to the
+          // original, whether blending or not.
+          pixel_buf[1] = pixel_buf[0];
+        }
+        // Buf index 2 is the "original" pixel data that setPixelColor()
+        // acts on. It's maintained as a separate copy because there may be
+        // multiple calls to refresh() to handle dithering & blending while
+        // a new frame is being rendered, and we don't want interim results
+        // to "tear" the image.
+        pixel_buf[2] = &pixel_buf[1][numBytes];
+        return true; // Good to go!
+      }
+      // If NeoPXL8::begin() failed, free any interim allocations.
+      free(dither_table);
+      dither_table = NULL;
+    }
+    free(pixel_buf[0]);
+    pixel_buf[0] = NULL;
+  }
+  return false;
+}
+
+void Adafruit_NeoPXL8HDR::setBrightness(uint8_t b) {
+  // Set RGBW, keep existing gamma
+  uint16_t b16 = b * 257; // 257 (not 256) is intentional; see setPixelColor()
+  setBrightness(b16, b16, b16, b16, gfactor);
+}
+
+void Adafruit_NeoPXL8HDR::setBrightness(uint16_t b, float y) {
+  // Set RGBW + gamma
+  setBrightness(b, b, b, b, y);
+}
+
+void Adafruit_NeoPXL8HDR::setBrightness(uint16_t r, uint16_t g, uint16_t b) {
+  // Set RGB, keep existing W + gamma
+  setBrightness(r, g, b, brightness_rgbw[3], gfactor);
+}
+
+void Adafruit_NeoPXL8HDR::setBrightness(uint16_t r, uint16_t g, uint16_t b,
+                                        uint16_t w) {
+  // Set RGBW, keep existing gamma
+  setBrightness(r, g, b, w, gfactor);
+}
+
+void Adafruit_NeoPXL8HDR::setBrightness(uint16_t r, uint16_t g, uint16_t b,
+                                        float y) {
+  // Set RGB+gamma, keep existing W
+  setBrightness(r, g, b, brightness_rgbw[3], y);
+}
+
+void Adafruit_NeoPXL8HDR::setBrightness(uint16_t r, uint16_t g, uint16_t b,
+                                        uint16_t w, float y) {
+  // Set RGBW+gamma, recalc table
+  brightness_rgbw[0] = r;
+  brightness_rgbw[1] = g;
+  brightness_rgbw[2] = b;
+  brightness_rgbw[3] = w;
+  gfactor = y;
+  calc_gamma_table();
+}
+
+void Adafruit_NeoPXL8HDR::calc_gamma_table(void) {
+  for (uint8_t c = 0; c < 4; c++) { // R, G, B, W component
+    // This is normal and intentional here that the peak value is scaled
+    // down very slightly. Each lookup table entry represents both a base
+    // 8-bit brightness level (0-255) and an 8-bit probability of "dithering
+    // up" to the next level. Since there's nowhere "above" 255 to dither
+    // (else it would roll over), at maximum brightness the topmost entry
+    // should be 0xFF00. We could either clip the top of the range or scale
+    // throughout. Since a gamma curve is also likely being applied anyway,
+    // this code opts for scale. This results in up to 65281 (not 65536)
+    // possible levels at full brightness. Since dithering is usually well
+    // under 8 bits, some of this gets truncated on output anyway, all good.
+    // A tiny bit of linearity is snuck in so we don't have a bunch of 0
+    // elements at the bottom.
+    float top = (float)(brightness_rgbw[c] * 0xFF00UL / 0xFFFF);
+    // There's only 256 elements in the gamma table, as a full 16-bit table
+    // would be inordinately large. In-between values are interpolated.
+    for (int i = 0; i < 256; i++) {
+      g16[c][i] =
+          i + uint16_t(pow((float)i / 255.0, gfactor) * (top - i) + 0.5);
+    }
+  }
+}
+
+void Adafruit_NeoPXL8HDR::show(void) {
+  // Called from the main thread of execution. New pixel data (via
+  // setPixelColor()) is loaded, but no blend/dither/refresh cycle occurs --
+  // that must be done with separate calls to refresh(). Originally had this
+  // fall through to the blend/dither code, but syncing the two threads both
+  // vying for dither access got ugly fast. Simpler as distinct behaviors.
+#if defined(ARDUINO_ARCH_RP2040)
+  mutex_enter_blocking(&mutex); // Sync w/refresh() on other core
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
+  xSemaphoreTake(mutex, 100);
+#else
+  noInterrupts();
+#endif
+  memcpy(pixel_buf[stage_index], pixel_buf[2], numBytes * sizeof(uint16_t));
+  if (pixel_buf[0] != pixel_buf[1]) { // Blending enabled?
+    stage_index ^= 1;                 // Ping-pong the staging buffers
+  }
+#if defined(ARDUINO_ARCH_RP2040)
+  mutex_exit(&mutex); // refresh() can resume
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
+  xSemaphoreGive(mutex);
+#else
+  interrupts();
+#endif
+  new_pixels = true; // Next true pass, don't blend new data, show at 100%
+}
+
+// 32-bit math requires some tradeoff between the accuracy of frame blending
+// and the maximum blend period that can be supported. BSHIFT determines
+// these limits. A value of 4 allows up to ~1 sec max blend time with about
+// 4K distinct blend states possible, while 6 allows up to ~4 sec / 1K,
+// still more than enough (temporal dithering is usu. coarser than this).
+#define BSHIFT 6 ///< Bit-shift in fixed-point math
+#define BLEND_MAX_USEC ((0xFFFFFFFF / 0xFF01) << BSHIFT) ///< Resulting max
+
+// Called from a second core or a timer interrupt. Blending and dithering
+// occurs, but no new pixel data is loaded, just iterating.
+void Adafruit_NeoPXL8HDR::refresh(void) {
+
+  if (pixel_buf[2]) { // Don't allow refresh until begin() is finished
+
+    uint32_t now = micros();
+    uint32_t elapsed = now - last_show_time;
+    // Need to limit this to avoid 32-bit overflow later
+    if (elapsed > BLEND_MAX_USEC)
+      elapsed = BLEND_MAX_USEC;
+    if (new_pixels) {
+      new_pixels = false;
+      avg_show_interval = ((avg_show_interval * 7) + elapsed + 4) / 8;
+      last_show_time = now;
+      elapsed = 0;
+    }
+#if defined(ARDUINO_ARCH_RP2040)
+    mutex_enter_blocking(&mutex); // Wait on show() on other thread
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
+    xSemaphoreTake(mutex, 100);
+#endif
+    uint16_t *p1 = pixel_buf[stage_index];     // Prev pixels
+    uint16_t *p2 = pixel_buf[1 - stage_index]; // Next pixels
+#if defined(ARDUINO_ARCH_RP2040)
+    mutex_exit(&mutex); // Thx, back to you...
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
+    xSemaphoreGive(mutex);
+#endif
+
+    // Blend and/or dither from p1 & p2 into pixels[]
+
+    uint16_t weight1, weight2;            // Current/next pixel blend weights
+    if (pixel_buf[0] != pixel_buf[1]) {   // Temporal blending?
+      if (elapsed >= avg_show_interval) { // At or past end of blend
+        weight2 = 0xFF01;                 // Next pixels contribute 100%
+      } else {                            // Start or part way through blend
+        weight2 = 0xFF01 * (elapsed >> BSHIFT) / (avg_show_interval >> BSHIFT);
+        // Note to Future Self: keep this fixed-point, don't float it!
+      }
+    } else {
+      weight2 = 0;
+    }
+    weight1 = 0xFF01 - weight2;
+    // Sum of weight1+2 is always 65281 (0xFF01, *not* 0xFFFF or 0xFF00), on
+    // purpose and by design. Blend of 16-bit pixel values by these weights
+    // yields a 32-bit result (max 0xFF0000FF) that, shifted right 16 bits,
+    // has a max of 0xFF00. Gamma table has 256 entries, so 16-bit colors
+    // interpolate between positions -- the lower table index being the
+    // upper byte of the blended result (up to 255, last index in table),
+    // and the next table entry weighted by the lower byte of the blended
+    // result. This way, the maximum blended pixel brightness (65535) uses
+    // gamma entry 255, with no weight to the nonexistent subsequent element.
+    // It maxes out the available range and avoids fencepost errors. This
+    // means we actually get a bit fewer than 65536 colors, but since there's
+    // coarser temporal dithering going on anyway, these tiny differences get
+    // quantized away anyway, no great loss.
+
+    uint16_t d = dither_table[dither_index];
+    uint16_t dither_mask = (uint16_t)((1 << dither_bits) - 1)
+                           << (16 - dither_bits);
+    uint8_t *p; // NeoPixel dest buf
+    uint8_t idx, w2;
+    uint32_t c; // R/G/B/W component
+
+    if (wOffset == rOffset) { // Is an RGB-type strip, 3 bytes/pixel
+      for (uint32_t i = 0; i < numBytes; i += 3) {
+        p = &pixels[i]; // -> NeoPixel lib buffer (8-bit)
+
+        // Blend values between p1 & p2 buffers (if blending is disabled,
+        // p1 & p2 both point to the same data, so we don't need separate
+        // code for blended vs not).
+
+        c = *p1++ * weight1 + *p2++ * weight2; // 32-bit result
+        // Determine base index into gamma table (high byte of 32-bit
+        // result), and weighting of next gamma entry.
+        idx = c >> 24; // High byte = base gamma table index
+        w2 = c >> 16;  // Mid-byte = next-entry weight
+        c = g16[0][idx] * (256 - w2) + g16[0][idx + 1] * w2;
+        p[rOffset] = (c >> 16) + ((c & dither_mask) > d);
+        // w2 (and its implied inverse) are gamma table weights. Their sum is
+        // always 256, but w2 only goes up to 255, again on purpose and by
+        // design. The weight of the second entry should be at most 255/256 --
+        // if it were 256/256, we'd just +1 the base index and use 0 for w2;
+
+        // Same operation, green channel
+        c = *p1++ * weight1 + *p2++ * weight2;
+        idx = c >> 24;
+        w2 = c >> 16;
+        c = g16[1][idx] * (256 - w2) + g16[1][idx + 1] * w2;
+        p[gOffset] = (c >> 16) + ((c & dither_mask) > d);
+
+        // Same operation, blue channel
+        c = *p1++ * weight1 + *p2++ * weight2;
+        idx = c >> 24;
+        w2 = c >> 16;
+        c = g16[2][idx] * (256 - w2) + g16[2][idx + 1] * w2;
+        p[bOffset] = (c >> 16) + ((c & dither_mask) > d);
+      }
+    } else { // Is a WRGB-type strip, 4 bytes/pixel
+      for (uint32_t i = 0; i < numBytes; i += 4) {
+        // Same as above, with added W channel
+        p = &pixels[i]; // -> NeoPixel lib buffer (8-bit)
+
+        c = *p1++ * weight1 + *p2++ * weight2;
+        idx = c >> 24;
+        w2 = c >> 16;
+        c = g16[0][idx] * (256 - w2) + g16[0][idx + 1] * w2;
+        p[rOffset] = (c >> 16) + ((c & dither_mask) > d);
+
+        c = *p1++ * weight1 + *p2++ * weight2;
+        idx = c >> 24;
+        w2 = c >> 16;
+        c = g16[1][idx] * (256 - w2) + g16[1][idx + 1] * w2;
+        p[gOffset] = (c >> 16) + ((c & dither_mask) > d);
+
+        c = *p1++ * weight1 + *p2++ * weight2;
+        idx = c >> 24;
+        w2 = c >> 16;
+        c = g16[2][idx] * (256 - w2) + g16[2][idx + 1] * w2;
+        p[bOffset] = (c >> 16) + ((c & dither_mask) > d);
+
+        c = *p1++ * weight1 + *p2++ * weight2;
+        idx = c >> 24;
+        w2 = c >> 16;
+        c = g16[3][idx] * (256 - w2) + g16[3][idx + 1] * w2;
+        p[wOffset] = (c >> 16) + ((c & dither_mask) > d);
+      }
+    }
+
+    Adafruit_NeoPXL8::show();
+
+    // Cycle dither probability. When it rolls over, update FPS estimate.
+    if (++dither_index >= (1 << dither_bits)) {
+      dither_index = 0;
+      elapsed = now - last_fps_time; // Microseconds since last dither rollover
+      if (elapsed)                   // Avoid /0 just in case
+        fps = ((fps * 7) + ((1000000UL << dither_bits) / elapsed) + 4) / 8;
+      last_fps_time = now;
+    }
+
+  } // end if (pixel_buf[2])
+}
+
+// SOME VALUABLE NOTES ABOUT setPixelColor() AND getPixelColor() FUNCTIONS:
+// - These are provided for compatibility with existing NeoPixel or NeoPXL8
+//   sketches moved directly to NeoPXL8HDR. New code may prefer set16()
+//   and get16() instead, which use 16-bit components.
+// - The multiplication by 257 (not 256) in these functions is INTENTIONAL.
+//   This is correct for expanding an 8-bit value to 16-bit while fully
+//   saturating the numeric range (e.g. 0xFF becomes 0xFFFF, not 0xFF00).
+//   Any NeoPXL8-capable MCU will have single-cycle multiply, there is no
+//   need to "optimize" this down to 256 or a shift operation. None.
+// - pixel_buf pixels are ALWAYS in RGB (or RGBW) order, which simplifies
+//   the store operations to fixed offsets (channel reordering happens
+//   during the dither operation).
+// - Although each of these COULD just multiply r/g/b/w by 257 and call
+//   set16(), instead each does the full expand-and-store on its own.
+//   These functions will likely be called a LOT from old carry-over
+//   NeoPixel projects, so there's some benfit in optimizing out the added
+//   function call, and the functions really aren't that large.
+
+void Adafruit_NeoPXL8HDR::setPixelColor(uint16_t n, uint8_t r, uint8_t g,
+                                        uint8_t b) {
+  if (n < numLEDs) {
+    uint16_t *p;
+    if (wOffset == rOffset) {   // RGB strip
+      p = &pixel_buf[2][n * 3]; // 3 words/pixel
+    } else {                    // RGBW strip
+      p = &pixel_buf[2][n * 4]; // 4 words/pixel
+      p[3] = 0;                 // But only R,G,B passed -- set W to 0
+    }
+    p[0] = r * 257; // Yes, 257, see notes above
+    p[1] = g * 257;
+    p[2] = b * 257;
+  }
+}
+
+void Adafruit_NeoPXL8HDR::setPixelColor(uint16_t n, uint8_t r, uint8_t g,
+                                        uint8_t b, uint8_t w) {
+  if (n < numLEDs) {
+    uint16_t *p;
+    if (wOffset == rOffset) {   // RGB strip
+      p = &pixel_buf[2][n * 3]; // 3 words/pixel (ignore W)
+    } else {                    // RGBW strip
+      p = &pixel_buf[2][n * 4]; // 4 words/pixel
+      p[3] = w * 257;           // Store W
+    }
+    p[0] = r * 257; // Yes, 257, see notes above
+    p[1] = g * 257;
+    p[2] = b * 257;
+  }
+}
+
+void Adafruit_NeoPXL8HDR::setPixelColor(uint16_t n, uint32_t c) {
+  if (n < numLEDs) {
+    uint8_t r = (uint8_t)(c >> 16), g = (uint8_t)(c >> 8), b = (uint8_t)c;
+    uint16_t *p;
+    if (wOffset == rOffset) {         // RGB strip
+      p = &pixel_buf[2][n * 3];       // 3 words/pixel
+    } else {                          // RGBW strip
+      p = &pixel_buf[2][n * 4];       // 4 words/pixel
+      uint8_t w = (uint8_t)(c >> 24); // Extract and
+      p[3] = w * 257;                 // store W
+    }
+    p[0] = r * 257; // Yes, 257, see notes above
+    p[1] = g * 257;
+    p[2] = b * 257;
+  }
+}
+
+void Adafruit_NeoPXL8HDR::set16(uint16_t n, uint16_t r, uint16_t g, uint16_t b,
+                                uint16_t w) {
+  if (n < numLEDs) {
+    uint16_t *p;
+    if (wOffset == rOffset) {   // RGB strip
+      p = &pixel_buf[2][n * 3]; // 3 words/pixel
+    } else {                    // RGBW strip
+      p = &pixel_buf[2][n * 4]; // 4 words/pixel
+      p[3] = w;
+    }
+    p[0] = r; // Internal represenation is always RGBW,
+    p[1] = g; // no need for ordering (happens on output)
+    p[2] = b;
+  }
+}
+
+// The 8-bit shifts in this function are INTENTIONAL, not dividing by 257
+// to reverse the setPixelColor() multiplication. Quantization down is a
+// different principle, and the result will be the same as any 8-bit values
+// passed to the set functions. Also, shift is single-cycle, but division
+// is not.
+uint32_t Adafruit_NeoPXL8HDR::getPixelColor(uint16_t n) const {
+  if (n < numLEDs) {
+    uint16_t *p;
+    if (wOffset == rOffset) { // RGB strip
+      p = &pixel_buf[2][n * 3];
+      return ((uint32_t)(p[0] & 0xFF00) << 8) | (uint32_t)(p[1] & 0xFF00) |
+             ((uint32_t)(p[2] & 0xFF00) >> 8);
+    } else { // RGBW strip
+      p = &pixel_buf[2][n * 4];
+      return ((uint32_t)(p[0] & 0xFF00) << 8) | (uint32_t)(p[1] & 0xFF00) |
+             ((uint32_t)(p[2] & 0xFF00) >> 8) |
+             ((uint32_t)(p[3] & 0xFF00) << 16);
+    }
+  }
+  return 0; // Index out of range, return no color
+}
+
+void Adafruit_NeoPXL8HDR::get16(uint16_t n, uint16_t *r, uint16_t *g,
+                                uint16_t *b, uint16_t *w) const {
+  if (n < numLEDs) {
+    uint16_t *p;
+    if (wOffset == rOffset) {   // RGB strip
+      p = &pixel_buf[2][n * 3]; // 3 words/pixel
+      if (w)
+        *w = 0;                 // If w passed, clear it
+    } else {                    // RGBW strip
+      p = &pixel_buf[2][n * 4]; // 4 words/pixel
+      if (w)
+        *w = p[3]; // Store w
+    }
+    *r = p[0]; // Internal represenation is always RGBW,
+    *g = p[1]; // no need for ordering (happens on output)
+    *b = p[2];
+  } else { // Index out of bounds, return no color
+    *r = *g = *b = 0;
+    if (w)
+      *w = 0;
+  }
 }
 
 /*--------------------------------------------------------------------------
