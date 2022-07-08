@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.8.13"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Adafruit NeoPXL8 Arduino Library: 8-way concurrent DMA NeoPixel library for SAMD21, SAMD51 and</title>
+<title>Adafruit NeoPXL8 Arduino Library: 8-way concurrent DMA NeoPixel library for SAMD21, SAMD51,</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -59,16 +59,17 @@ $(function() {
 
 <div class="header">
   <div class="headertitle">
-<div class="title">8-way concurrent DMA NeoPixel library for SAMD21, SAMD51 and </div>  </div>
+<div class="title">8-way concurrent DMA NeoPixel library for SAMD21, SAMD51, </div>  </div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p>RP2040 microcontrollers.</p>
+<div class="textblock"><p>RP2040 and ESP32S3 microcontrollers.</p>
 <h1><a class="anchor" id="intro_sec"></a>
 Introduction</h1>
-<p><a class="el" href="class_adafruit___neo_p_x_l8.html" title="Adafruit_NeoPXL8 is a subclass of Adafruit_NeoPixel containing buffers for DMA-formatted 8-way concur...">Adafruit_NeoPXL8</a> is an Arduino library that leverages hardware features unique to some Atmel SAMD21 and SAMD51 microcontrollers, plus the Raspberry Pi RP2040 chip, to communicate with large numbers of NeoPixels with very low CPU utilization and without losing track of time. It was originally designed for the Adafruit Feather M0 board with NeoPXL8 FeatherWing interface/adapter, but may be applicable to other situations (e.g. Arduino Zero, Adafruit Metro M0, etc., using logic level-shifting as necessary). A different FeatherWing with pinout specific to the Feather M4 is also available.</p>
+<p><a class="el" href="class_adafruit___neo_p_x_l8.html" title="Adafruit_NeoPXL8 is a subclass of Adafruit_NeoPixel containing buffers for DMA-formatted 8-way concur...">Adafruit_NeoPXL8</a> is an Arduino library that leverages hardware features unique to some Atmel SAMD21 and SAMD51 microcontrollers, plus the Raspberry Pi RP2040 and Espressif ESP32S3 (not S2, etc.) chips, to communicate with large numbers of NeoPixels with very low CPU utilization and without losing track of time. It was originally designed for the Adafruit Feather M0 board with NeoPXL8 FeatherWing interface/adapter, but may be applicable to other situations (e.g. Arduino Zero, Adafruit Metro M0, etc., using logic level-shifting as necessary). A different FeatherWing with pinout specific to the Feather M4 is also available.</p>
 <p>NeoPXL8 FeatherWing M0: <a href="https://www.adafruit.com/product/3249">https://www.adafruit.com/product/3249</a> NeoPXL8 FeatherWing M4: <a href="https://www.adafruit.com/product/4537">https://www.adafruit.com/product/4537</a></p>
 <p>Because the SAMD21 does not provide GPIO DMA, the code instead makes use of the "pattern generator" peripheral for its 8 concurrent outputs. Due to pin/peripheral multiplexing constraints, most outputs are limited to SPECIFIC PINS or provide at most ONE ALTERNATE pin selection. See the example code for details. The payoff is that this peripheral handles the NeoPixel data transfer while the CPU is entirely free to render the next frame (and interrupts can remain enabled &ndash; millis()/micros() don't lose time, and soft PWM (for servos, etc.) still operate normally).</p>
 <p>Additionally, NeoPXL8 has nondestructive brightness scaling...unlike classic NeoPixel, getPixelColor() here always returns the original value as was passed to setPixelColor().</p>
+<p><a class="el" href="class_adafruit___neo_p_x_l8_h_d_r.html" title="Adafruit_NeoPXL8HDR is a subclass of Adafruit_NeoPXL8 with additions for 16-bits-per-channel color...">Adafruit_NeoPXL8HDR</a> is a subclass of <a class="el" href="class_adafruit___neo_p_x_l8.html" title="Adafruit_NeoPXL8 is a subclass of Adafruit_NeoPixel containing buffers for DMA-formatted 8-way concur...">Adafruit_NeoPXL8</a> adding 16-bits- per-channel color support, temporal dithering, frame blending and gamma correction. This requires inordinate RAM, and the frequent need for refreshing makes it best suited for multi-core chips (e.g. RP2040).</p>
 <p>RP2040 support requires Philhower core (not Arduino mbed core). Also on RP2040, pin numbers passed to constructor are GP## indices, not necessarily the digital pin numbers silkscreened on the board.</p>
 <p>0/1 bit timing does not precisely match NeoPixel/WS2812/SK6812 datasheet specs, but it seems to work well enough. Use at your own peril.</p>
 <p>Some of the more esoteric NeoPixel functions are not implemented here, so THIS IS NOT A 100% DROP-IN REPLACEMENT for all NeoPixel code right now.</p>
