@@ -275,7 +275,7 @@ Adafruit_NeoPXL8::~Adafruit_NeoPXL8() {
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
   gdma_reset(dma_chan);
   if (allocAddr)
-    free(allocAddr);
+    heap_caps_free(allocAddr);
 #else
   dma.abort();
   if (allocAddr)
@@ -379,13 +379,14 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
     uint32_t alloc_size =
         num_desc * sizeof(dma_descriptor_t) + (dbuf ? buf_size * 2 : buf_size);
 
-    if ((allocAddr = (uint8_t *)malloc(alloc_size))) {
+    if ((allocAddr = (uint8_t *)heap_caps_malloc(
+             alloc_size, MALLOC_CAP_DMA | MALLOC_CAP_8BIT))) {
 
       // Find first 32-bit aligned address following descriptor list
       alignedAddr[0] =
           (uint32_t
-               *)((uint32_t)(
-                      &allocAddr[num_desc * sizeof(dma_descriptor_t) + 3]) &
+               *)((uint32_t)(&allocAddr[num_desc * sizeof(dma_descriptor_t) +
+                                        3]) &
                   ~3);
       dmaBuf[0] = (uint8_t *)alignedAddr[0];
 
