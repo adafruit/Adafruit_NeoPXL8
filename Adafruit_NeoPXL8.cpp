@@ -385,8 +385,8 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
       // Find first 32-bit aligned address following descriptor list
       alignedAddr[0] =
           (uint32_t
-               *)((uint32_t)(&allocAddr[num_desc * sizeof(dma_descriptor_t) +
-                                        3]) &
+               *)((uint32_t)(
+                      &allocAddr[num_desc * sizeof(dma_descriptor_t) + 3]) &
                   ~3);
       dmaBuf[0] = (uint8_t *)alignedAddr[0];
 
