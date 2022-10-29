@@ -346,7 +346,7 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
         }
       }
       // Func not working? Or using it wrong?
-      //pio_sm_set_pindirs_with_mask(pio, sm, pindir_mask, pindir_mask);
+      // pio_sm_set_pindirs_with_mask(pio, sm, pindir_mask, pindir_mask);
       // For now, set all 8 as outputs, even if in-betweens are skipped
       pio_sm_set_consecutive_pindirs(pio, sm, least_pin, 8, true);
 
