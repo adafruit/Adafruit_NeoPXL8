@@ -321,20 +321,6 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
       // If no double buffering, point both to same space
       dmaBuf[1] = dbuf ? &dmaBuf[0][buf_size] : dmaBuf[0];
 
-      // Set up PIO outputs
-      uint32_t pindir_mask = 0;
-      for (uint8_t i = 0; i < 8; i++) {
-        if (pins[i] >= 0) {
-          pio_gpio_init(pio, pins[i]);
-          pindir_mask = 1 << pins[i];
-          bitmask[i] = 1 << (pins[i] - least_pin);
-        }
-      }
-      // Func not working? Or using it wrong?
-      // pio_sm_set_pindirs_with_mask(pio, sm, pindir_mask, pindir_mask);
-      // For now, set all 8 as outputs, even if in-betweens are skipped
-      pio_sm_set_consecutive_pindirs(pio, sm, least_pin, 8, true);
-
       // Set up PIO code & clock
       uint offset = pio_add_program(pio, &neopxl8_program);
       sm = pio_claim_unused_sm(pio, true); // 0-3
@@ -349,6 +335,20 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
       sm_config_set_clkdiv(&conf, div);
       pio_sm_init(pio, sm, offset, &conf);
       pio_sm_set_enabled(pio, sm, true);
+
+      // Set up PIO outputs
+      uint32_t pindir_mask = 0;
+      for (uint8_t i = 0; i < 8; i++) {
+        if (pins[i] >= 0) {
+          pio_gpio_init(pio, pins[i]);
+          pindir_mask = 1 << pins[i];
+          bitmask[i] = 1 << (pins[i] - least_pin);
+        }
+      }
+      // Func not working? Or using it wrong?
+      //pio_sm_set_pindirs_with_mask(pio, sm, pindir_mask, pindir_mask);
+      // For now, set all 8 as outputs, even if in-betweens are skipped
+      pio_sm_set_consecutive_pindirs(pio, sm, least_pin, 8, true);
 
       // Set up DMA transfer
       dma_channel = dma_claim_unused_channel(false); // Don't panic
