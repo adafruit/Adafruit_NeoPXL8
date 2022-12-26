@@ -110,6 +110,8 @@ static Adafruit_NeoPXL8 *neopxl8_ptr = NULL;
 
 #if defined(ARDUINO_ARCH_RP2040)
 
+#define DMA_IRQ_N 1 ///< Can be 0 or 1, no functional difference, 1 looks cool
+
 // PIO code. As currently written, uses 2/9 and 5/9 duty cycle for '0' and
 // '1' bits respectively. This does not match the datasheet, but works well
 // enough (actual NeoPixel output doesn't match the datasheet either,
@@ -132,12 +134,14 @@ static const struct pio_program neopxl8_program = {
 };
 
 // Called at end of DMA transfer. Clears 'sending' flag and notes start of
-// NeoPixel latch time. Done as a callback (from the IRQ below) because
+// NeoPixel latch time. Done as a callback (from the IRQ below) because it
 // needs access to a protected NeoPXL8 member (dma_channel).
 void Adafruit_NeoPXL8::dma_callback() {
-  dma_hw->ints0 = 1u << dma_channel; // Clear IRQ
-  lastBitTime = micros();
-  sending = 0;
+  if (dma_irqn_get_channel_status(DMA_IRQ_N, dma_channel)) {
+    dma_irqn_acknowledge_channel(DMA_IRQ_N, dma_channel); // Clear IRQ
+    lastBitTime = micros();
+    sending = 0;
+  }
 }
 
 static void dma_finish_irq(void) {
@@ -364,9 +368,15 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
                             dmaBuf[dbuf_index], // src
                             buf_size, false);
       // Set up end-of-DMA interrupt
-      irq_set_exclusive_handler(DMA_IRQ_0, dma_finish_irq);
+      irq_add_shared_handler(DMA_IRQ_N == 0 ? DMA_IRQ_0 : DMA_IRQ_1,
+                             dma_finish_irq,
+                             PICO_SHARED_IRQ_HANDLER_DEFAULT_ORDER_PRIORITY);
+#if (DMA_IRQ_N == 0)
       dma_channel_set_irq0_enabled(dma_channel, true);
-      irq_set_enabled(DMA_IRQ_0, true);
+#else
+      dma_channel_set_irq1_enabled(dma_channel, true);
+#endif
+      irq_set_enabled(DMA_IRQ_N == 0 ? DMA_IRQ_0 : DMA_IRQ_1, true);
 
       return true; // Success!
     }
@@ -385,8 +395,8 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
       // Find first 32-bit aligned address following descriptor list
       alignedAddr[0] =
           (uint32_t
-               *)((uint32_t)(
-                      &allocAddr[num_desc * sizeof(dma_descriptor_t) + 3]) &
+               *)((uint32_t)(&allocAddr[num_desc * sizeof(dma_descriptor_t) +
+                                        3]) &
                   ~3);
       dmaBuf[0] = (uint8_t *)alignedAddr[0];
 
