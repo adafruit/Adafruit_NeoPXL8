@@ -23,6 +23,7 @@
 
 typedef enum {
   NEO_OK = 0,      // Config file successfully read
+  NEO_ERR_CONFIG,  // Missing config structure
   NEO_ERR_FILESYS, // Can't initialize flash filesystem, will use defaults
   NEO_ERR_FILE,    // Can't open config file, will use defaults
   NEO_ERR_JSON,    // Config file isn't valid JSON, will use defaults
@@ -88,6 +89,9 @@ static void msc_flush_cb(void) {
 NEOPXL8status func(NEOPXL8config *config, FatVolume *fs = NULL,
                    const char *filename = "neopxl8.cfg") {
 
+  if (!config)
+    return NEO_ERR_CONFIG;
+
   // Initialize config struct defaults
   config->json_str[0] = 0;
 
@@ -145,29 +149,17 @@ NEOPXL8status func(NEOPXL8config *config, FatVolume *fs = NULL,
           }
         }
       }
-
-#if 0
-// Remember here, JSON can also use "|" for assigning default, e.g.
-// foo = doc["keyword"] | default;
-  if(v.is<int>()) {                      // If integer...
-    return v;                            // ...return value directly
-  } else if(v.is<float>()) {             // If float...
-    return (int)(v.as<float>() + 0.5);   // ...return rounded integer
-  } else if(v.is<char*>()) {             // If string...
-    if((strlen(v) == 6) && !strncasecmp(v, "0x", 2)) { // 4-digit hex?
-      uint16_t rgb = strtol(v, NULL, 0); // Probably a 16-bit RGB color,
-      return __builtin_bswap16(rgb);     // convert to big-endian
-    } else {
-      return strtol(v, NULL, 0);         // Some other int/hex/octal
-    }
-  } else if(v.is<JsonArray>()) {         // If array...
-    if(v.size() >= 3) {                  // ...and at least 3 elements...
-//      x    = doc["stackReserve"], default value;
-
-    }
-  } else {  // Not found in document, use default
-  }
-#endif
+      v = doc["pins"];
+      if (v.is<JsonArray>()) {
+        int n = min(v.size(), 8);
+        for (uint8_t i = 0; i < n; i++)
+          config->pins[i] = v[i].as<int>();
+      }
+      config->ditherBits = doc["dither"] | config->ditherBits;
+      config->cols = doc["cols"] | config->cols;
+      config->rows = doc["rows"] | config->rows;
+      config->rowsPer = doc["rowsPer"] | config->rowsPer;
+      config->layout = doc["layout"] | config->layout;
     }
 
     file.close();
