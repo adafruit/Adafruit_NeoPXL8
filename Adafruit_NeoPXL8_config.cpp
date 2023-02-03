@@ -6,9 +6,9 @@
  * @file Adafruit_NeoPXL8_config.c
  *
  * Helper code to assist in reading NeoPXL8/NeoPXL8HDR setup from JSON
- * configuration file (rather than hardcoded in sketch).
- * This is NOT in the main Adafruit_NeoPXL8 code as it incurs some extra
- * dependencies that would complicate basic NeoPXL8 use.
+ * configuration file (rather than hardcoded in sketch). This is
+ * intentionally NOT in the main Adafruit_NeoPXL8 code as it incurs some
+ * extra dependencies that would complicate basic NeoPXL8 use.
  *
  * Adafruit invests time and resources providing this open source code,
  * please support Adafruit and open-source hardware by purchasing
@@ -26,9 +26,28 @@
 
 #if defined(USE_TINYUSB)
 
-#include <Adafruit_SPIFlash.h>
 #include <Adafruit_TinyUSB.h>
 
+#if defined(ADAFRUIT_FEATHER_M0) || defined(ADAFRUIT_TRINKET_M0) ||            \
+    defined(ADAFRUIT_GEMMA_M0) || defined(ADAFRUIT_QTPY_M0)
+
+// A few M0 boards handle a tiny CIRCUITPY drive in the MCU's internal flash.
+// The Feather M0 is the only one of these I could reasonably see being used
+// with NeoPXL8 (the others have few GPIO and I haven't even checked to see
+// which pins IF ANY are pattern generator compatible), but they're included
+// in the check above for good measure. The QT Py M0 "Haxpress" (external
+// flash added under board) is not correctly handled in this regard because
+// there's no distinct board menu selection for it, and because come ON.
+// Trinkey M0 boards are also skipped, being unlikely candidates for NeoPXL8.
+
+#include <Adafruit_InternalFlash.h>
+#define FLASH_FS_SIZE (64 * 1024)
+#define FLASH_FS_START (0x00040000 - 256 - 0 - FLASH_FS_SIZE)
+Adafruit_InternalFlash flash(FLASH_FS_START, FLASH_FS_SIZE);
+
+#else
+
+#include <Adafruit_SPIFlash.h>
 #if defined(ARDUINO_ARCH_ESP32)
 static Adafruit_FlashTransport_ESP32 flashTransport;
 #elif defined(ARDUINO_ARCH_RP2040)
@@ -44,6 +63,9 @@ static Adafruit_FlashTransport_SPI flashTransport(EXTERNAL_FLASH_USE_CS,
 #error "Flash specifications are unknown for this board."
 #endif
 static Adafruit_SPIFlash flash(&flashTransport);
+
+#endif // end !ADAFRUIT_FEATHER_M0, etc.
+
 static Adafruit_USBD_MSC usb_msc;
 static FatVolume fatfs;
 
@@ -66,41 +88,53 @@ static void msc_flush_cb(void) {
 #warning "from the CIRCUITPY filesystem. Otherwise defaults are used."
 #endif // end if USE_TINYUSB
 
-NeoPXL8status func(NeoPXL8config *config, FatVolume *fs, const char *filename) {
+NeoPXL8status NeoPXL8readConfig(NeoPXL8config *config, FatVolume *fs,
+                                const char *filename) {
 
   if (!config)
     return NEO_ERR_CONFIG;
 
   // Initialize config struct defaults
-  config->json_str[0] = 0;
+  config->message[0] = 0;
 
 #if defined(USE_TINYUSB)
+  // If no filesystem was passed in, try accessing the CIRCUITPY drive.
   if (!fs) {
     flash.begin();
+#if defined(ADAFRUIT_FEATHER_M0)
+    usb_msc.setID("Adafruit", "Internal Flash", "1.0");
+#else
     usb_msc.setID("Adafruit", "External Flash", "1.0");
+#endif
     usb_msc.setReadWriteCallback(msc_read_cb, msc_write_cb, msc_flush_cb);
     usb_msc.setCapacity(flash.size() / 512, 512);
     usb_msc.setUnitReady(true);
     usb_msc.begin();
-    if (!fatfs.begin(&flash))
+    if (!fatfs.begin(&flash)) {
+      strcpy(config->message, "No filesystem");
       return NEO_ERR_FILESYS;
+    }
     fs = &fatfs;
     // If flash/msc is initialized here, it REMAINS ACTIVE after function
     // returns (is not stopped), to allow USB access to files (editing the
-    // config, moving over files, etc.).
+    // config, moving over files, etc.) via the msc_* callbacks above.
   }
 #endif
 
   FatFile file;
+  NeoPXL8status status = NEO_OK;
 
+  // Open and decode JSON file...
   if (file = fs->open(filename, FILE_READ)) {
     StaticJsonDocument<1024> doc;
     DeserializationError error = deserializeJson(doc, file);
     if (error) {
-      strncpy(config->json_str, error.c_str(), sizeof(config->json_str) - 1);
-      config->json_str[sizeof(config->json_str) - 1] = 0;
-      return NEO_ERR_JSON;
+      // Some JSON syntax error. config message holds a brief summary.
+      strncpy(config->message, error.c_str(), sizeof(config->message) - 1);
+      config->message[sizeof(config->message) - 1] = 0;
+      status = NEO_ERR_JSON;
     } else {
+      // Valid JSON, process the configuration...
       JsonVariant v;
       v = doc["pins"];
       if (v.is<JsonArray>()) {
@@ -108,16 +142,15 @@ NeoPXL8status func(NeoPXL8config *config, FatVolume *fs, const char *filename) {
         for (uint8_t i = 0; i < n; i++)
           config->pins[i] = v[i].as<int>();
       }
-      config->rowsPerPin = doc["rowsPerPin"] | config->rowsPerPin;
-      config->cols = doc["cols"] | config->cols;
+      config->length = doc["length"] | config->length;
       v = doc["order"];
       if (v.is<const char *>()) {
-        // Although this could be done with examining each char and some bit
-        // fiddling, a lookup table is used in case NeoPixel lib changes bit
-        // stuff.
+        // Although color order *could* be done by examining each character
+        // and some bit-fiddling, a string lookup table is used instead in
+        // case NeoPixel library changes how the color order bits work.
         const struct {
-          const char *order;
-          uint8_t value; // From Adafruit_NeoPixel.h, minus the KHZ400 bit
+          const char *order; // Color order identifier, e.g. "GBRW"
+          uint8_t value;     // From Adafruit_NeoPixel.h, minus the KHZ bit
         } order[] = {
             "RGB",  NEO_RGB,  "RBG",  NEO_RBG,  "GRB",  NEO_GRB,
             "GBR",  NEO_GBR,  "BRG",  NEO_BRG,  "BGR",  NEO_BGR,
@@ -138,25 +171,27 @@ NeoPXL8status func(NeoPXL8config *config, FatVolume *fs, const char *filename) {
         }
       }
       config->dither = doc["dither"] | config->dither;
-      if (config->extras) {
-        for (int i = 0; config->extras[i].key; i++) {
-          v = doc[config->extras[i].key];
+      // Sketches can include their own configurables in the JSON file.
+      // It's very rudimentary -- strings only (max length 20), sketch will
+      // need to do any int/float/etc conversion on its own, and strictly
+      // "flat," no hierarchy or nesting -- but does keep the sketch code
+      // very simple.
+      if (config->extra) {
+        for (int i = 0; config->extra[i].key; i++) {
+          v = doc[config->extra[i].key];
           if (v.is<const char *>()) {
-            strncpy(config->extras[i].value, v,
-                    sizeof(config->extras[i].value) - 1);
-            config->extras[i].value[sizeof(config->extras[i].value) - 1] = 0;
+            strncpy(config->extra[i].value, v,
+                    sizeof(config->extra[i].value) - 1);
+            config->extra[i].value[sizeof(config->extra[i].value) - 1] = 0;
           }
         }
       }
     }
-
     file.close();
+  } else {
+    strcpy(config->message, "Can't open config");
+    status = NEO_ERR_FILE;
   }
 
-#if defined(USE_TINYUSB)
-  if (fs == &fatfs)
-    fatfs.end(); // No longer accessed in this code
-#endif
-
-  return NEO_OK;
+  return status;
 }
