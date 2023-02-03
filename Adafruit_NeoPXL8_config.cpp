@@ -125,7 +125,7 @@ NeoPXL8status NeoPXL8readConfig(NeoPXL8config *config, FatVolume *fs,
   NeoPXL8status status = NEO_OK;
 
   // Open and decode JSON file...
-  if (file = fs->open(filename, FILE_READ)) {
+  if ((file = fs->open(filename, FILE_READ))) {
     StaticJsonDocument<1024> doc;
     DeserializationError error = deserializeJson(doc, file);
     if (error) {
