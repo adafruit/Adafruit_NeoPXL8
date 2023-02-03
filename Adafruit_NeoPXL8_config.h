@@ -29,7 +29,12 @@ typedef enum {
   NEO_ERR_FILESYS, // Can't initialize flash filesystem, will use defaults
   NEO_ERR_FILE,    // Can't open config file, will use defaults
   NEO_ERR_JSON,    // Config file isn't valid JSON, will use defaults
-} NEOPXL8status;
+} NeoPXL8status;
+
+typedef struct {
+  const char *key;
+  char value[21];
+} NeoPXL8configExtras;
 
 typedef struct {
   int8_t pins[8];
@@ -37,8 +42,9 @@ typedef struct {
   uint16_t cols;
   uint16_t order;
   uint8_t dither;
-  char json_str[20];
-} NEOPXL8config;
+  char json_str[21];
+  NeoPXL8configExtras *extras; // KEEP THIS AT END (inits to 0 if unspecified)
+} NeoPXL8config;
 
-NEOPXL8status func(NEOPXL8config *config, FatVolume *fs = NULL,
+NeoPXL8status func(NeoPXL8config *config, FatVolume *fs = NULL,
                    const char *filename = "neopxl8.cfg");

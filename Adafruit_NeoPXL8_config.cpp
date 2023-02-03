@@ -66,7 +66,7 @@ static void msc_flush_cb(void) {
 #warning "from the CIRCUITPY filesystem. Otherwise defaults are used."
 #endif // end if USE_TINYUSB
 
-NEOPXL8status func(NEOPXL8config *config, FatVolume *fs, const char *filename) {
+NeoPXL8status func(NeoPXL8config *config, FatVolume *fs, const char *filename) {
 
   if (!config)
     return NEO_ERR_CONFIG;
@@ -97,7 +97,8 @@ NEOPXL8status func(NEOPXL8config *config, FatVolume *fs, const char *filename) {
     StaticJsonDocument<1024> doc;
     DeserializationError error = deserializeJson(doc, file);
     if (error) {
-      strncpy(config->json_str, error.c_str(), sizeof(config->json_str));
+      strncpy(config->json_str, error.c_str(), sizeof(config->json_str) - 1);
+      config->json_str[sizeof(config->json_str) - 1] = 0;
       return NEO_ERR_JSON;
     } else {
       JsonVariant v;
@@ -137,6 +138,16 @@ NEOPXL8status func(NEOPXL8config *config, FatVolume *fs, const char *filename) {
         }
       }
       config->dither = doc["dither"] | config->dither;
+      if (config->extras) {
+        for (int i = 0; config->extras[i].key; i++) {
+          v = doc[config->extras[i].key];
+          if (v.is<const char *>()) {
+            strncpy(config->extras[i].value, v,
+                    sizeof(config->extras[i].value) - 1);
+            config->extras[i].value[sizeof(config->extras[i].value) - 1] = 0;
+          }
+        }
+      }
     }
 
     file.close();
