@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 /*!
- * @file Adafruit_NeoPXL8_config.c
+ * @file Adafruit_NeoPXL8_config.cpp
  *
  * Helper code to assist in reading NeoPXL8/NeoPXL8HDR setup from JSON
  * configuration file (rather than hardcoded in sketch). This is
@@ -21,10 +21,10 @@
  */
 
 #include "Adafruit_NeoPXL8_config.h"
-#define ARDUINOJSON_ENABLE_COMMENTS 1
+#define ARDUINOJSON_ENABLE_COMMENTS 1 ///< Allow comments in JSON file
 #include <ArduinoJson.h>
 
-#if defined(USE_TINYUSB)
+#if defined(USE_TINYUSB) || defined(ESP32)
 
 #include <Adafruit_TinyUSB.h>
 
@@ -86,7 +86,7 @@ static void msc_flush_cb(void) {
 #warning "TinyUSB stack not selected. While technically not an error,"
 #warning "it's required if you want to read NeoPXL8 JSON configuration"
 #warning "from the CIRCUITPY filesystem. Otherwise defaults are used."
-#endif // end if USE_TINYUSB
+#endif // end if USE_TINYUSB/ESP32
 
 NeoPXL8status NeoPXL8readConfig(NeoPXL8config *config, FatVolume *fs,
                                 const char *filename) {
@@ -97,7 +97,7 @@ NeoPXL8status NeoPXL8readConfig(NeoPXL8config *config, FatVolume *fs,
   // Initialize config struct defaults
   config->message[0] = 0;
 
-#if defined(USE_TINYUSB)
+#if defined(USE_TINYUSB) || defined(ESP32)
   // If no filesystem was passed in, try accessing the CIRCUITPY drive.
   if (!fs) {
     flash.begin();

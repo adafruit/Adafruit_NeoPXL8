@@ -25,7 +25,7 @@
 #include "Adafruit_NeoPXL8.h"
 #include <SdFat.h>
 
-// Status codes returned by the config-reading function
+///< Status codes returned by the config-reading function
 typedef enum {
   NEO_OK = 0,      // Config file successfully read
   NEO_ERR_CONFIG,  // Missing config structure
@@ -34,21 +34,23 @@ typedef enum {
   NEO_ERR_JSON,    // Config file isn't valid JSON, will use defaults
 } NeoPXL8status;
 
-// This structure provides a rudimentary way for sketches to read additional
-// config data from the file, without having to extend the library in very
-// specific ways.
+/// This structure provides a rudimentary way for sketches to read additional
+/// config data from the file, without having to extend the library in very
+/// specific ways.
 typedef struct {
-  const char *key; // JSON key
-  char value[21];  // Paired value (always a string, may require conversion)
+  const char *key; ///< JSON key
+  char value[21];  ///< Paired value (always a string, may require conversion)
 } NeoPXL8configExtra;
 
+/// This structure should be set up by a sketch and its address then passed
+/// to the config-reading function. Results are placed back in struct.
 typedef struct {
-  int8_t pins[8];            // List of pins for NeoPXL8(HDR) constructor
-  uint16_t length;           // Length of NeoPixel strand PER PIN
-  uint16_t order;            // Color order, e.g. NEO_GRB
-  uint8_t dither;            // Extra bits for HDR dithering (if NeoPXL8HDR)
-  char message[21];          // Status message, may help w/JSON debugging
-  NeoPXL8configExtra *extra; // Sketch can attach config array if needed
+  int8_t pins[8];            ///< List of pins for NeoPXL8(HDR) constructor
+  uint16_t length;           ///< Length of NeoPixel strand PER PIN
+  uint16_t order;            ///< Color order, e.g. NEO_GRB
+  uint8_t dither;            ///< Extra bits for HDR dithering (if NeoPXL8HDR)
+  char message[21];          ///< Status message, may help w/JSON debugging
+  NeoPXL8configExtra *extra; ///< Sketch can attach config array if needed
 } NeoPXL8config;
 
 /*!

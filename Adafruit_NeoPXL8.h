@@ -558,7 +558,7 @@ protected:
 #elif defined(ARDUINO_ADAFRUIT_FEATHER_RP2040)
 #define NEOPXL8_DEFAULT_PINS { 6, 7, 9, 8, 13, 12, 11, 10 }
 #else
-#define NEOPXL8_DEFAULT_PINS { 0, 1, 2, 3, 4, 5, 6, 7 }
+#define NEOPXL8_DEFAULT_PINS { 0, 1, 2, 3, 4, 5, 6, 7 } ///< Generic pin list
 #endif
 
 #endif // _ADAFRUIT_NEOPXL8_H_
