@@ -546,19 +546,28 @@ protected:
 // these defaults, a user sketch must provide its own correct pin list.
 // These may work for sloppy quick code but are NOT true in all situations!
 #if defined(ARDUINO_ADAFRUIT_FEATHER_RP2040_SCORPIO)
-#define NEOPXL8_DEFAULT_PINS { 16, 17, 18, 19, 20, 21, 22, 23 }
+#define NEOPXL8_DEFAULT_PINS                                                   \
+  { 16, 17, 18, 19, 20, 21, 22, 23 }
 #elif defined(ADAFRUIT_FEATHER_M0) || defined(ARDUINO_SAMD_FEATHER_M0_EXPRESS)
-#define NEOPXL8_DEFAULT_PINS { PIN_SERIAL1_RX, PIN_SERIAL1_TX, MISO, 13, 5, SDA, A4, A3 }
-#elif defined(ADAFRUIT_FEATHER_M4_EXPRESS) || defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S3) || defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S3_NOPSRAM)
-#define NEOPXL8_DEFAULT_PINS { 13, 12, 11, 10, SCK, 5, 9, 6 }
+#define NEOPXL8_DEFAULT_PINS                                                   \
+  { PIN_SERIAL1_RX, PIN_SERIAL1_TX, MISO, 13, 5, SDA, A4, A3 }
+#elif defined(ADAFRUIT_FEATHER_M4_EXPRESS) ||                                  \
+    defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S3) ||                               \
+    defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S3_NOPSRAM)
+#define NEOPXL8_DEFAULT_PINS                                                   \
+  { 13, 12, 11, 10, SCK, 5, 9, 6 }
 #elif defined(ADAFRUIT_METRO_M4_EXPRESS)
-#define NEOPXL8_DEFAULT_PINS { 7, 4, 5, 6, 3, 2, 10, 11 }
+#define NEOPXL8_DEFAULT_PINS                                                   \
+  { 7, 4, 5, 6, 3, 2, 10, 11 }
 #elif defined(ADAFRUIT_GRAND_CENTRAL_M4)
-#define NEOPXL8_DEFAULT_PINS { 30, 31, 32, 33, 36, 37, 34, 35 }
+#define NEOPXL8_DEFAULT_PINS                                                   \
+  { 30, 31, 32, 33, 36, 37, 34, 35 }
 #elif defined(ARDUINO_ADAFRUIT_FEATHER_RP2040)
-#define NEOPXL8_DEFAULT_PINS { 6, 7, 9, 8, 13, 12, 11, 10 }
+#define NEOPXL8_DEFAULT_PINS                                                   \
+  { 6, 7, 9, 8, 13, 12, 11, 10 }
 #else
-#define NEOPXL8_DEFAULT_PINS { 0, 1, 2, 3, 4, 5, 6, 7 } ///< Generic pin list
+#define NEOPXL8_DEFAULT_PINS                                                   \
+  { 0, 1, 2, 3, 4, 5, 6, 7 } ///< Generic pin list
 #endif
 
 #endif // _ADAFRUIT_NEOPXL8_H_

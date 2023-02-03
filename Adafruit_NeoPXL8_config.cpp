@@ -126,10 +126,10 @@ NeoPXL8status NeoPXL8readConfig(NeoPXL8config *config, FatVolume *fs,
 
   // Open and decode JSON file...
   if ((file = fs->open(filename, FILE_READ))) {
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<1024> doc; // Small, up to 1K max
     DeserializationError error = deserializeJson(doc, file);
     if (error) {
-      // Some JSON syntax error. config message holds a brief summary.
+      // Some JSON syntax error. Config message holds a brief summary.
       strncpy(config->message, error.c_str(), sizeof(config->message) - 1);
       config->message[sizeof(config->message) - 1] = 0;
       status = NEO_ERR_JSON;

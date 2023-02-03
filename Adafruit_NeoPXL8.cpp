@@ -499,7 +499,7 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
   dbuf = false;
 
   uint32_t buf_size = numLEDs * bytesPerPixel * 3 + EXTRASTARTBYTES + 3;
-  //uint32_t alloc_size = dbuf ? buf_size * 2 : buf_size;
+  // uint32_t alloc_size = dbuf ? buf_size * 2 : buf_size;
 
   if ((allocAddr = (uint8_t *)malloc(buf_size))) {
     int i;
