@@ -21,8 +21,6 @@
  */
 
 #include "Adafruit_NeoPXL8_config.h"
-#define ARDUINOJSON_ENABLE_COMMENTS 1 ///< Allow comments in JSON file
-#include <ArduinoJson.h>
 
 #if defined(USE_TINYUSB) || defined(ESP32)
 
@@ -88,15 +86,8 @@ static void msc_flush_cb(void) {
 #warning "from the CIRCUITPY filesystem. Otherwise defaults are used."
 #endif // end if USE_TINYUSB/ESP32
 
-NeoPXL8status NeoPXL8readConfig(NeoPXL8config *config, FatVolume *fs,
-                                const char *filename) {
-
-  if (!config)
-    return NEO_ERR_CONFIG;
-
-  // Initialize config struct defaults
-  config->message[0] = 0;
-
+DynamicJsonDocument NeoPXL8configRead(int size, FatVolume *fs,
+                                      const char *filename) {
 #if defined(USE_TINYUSB) || defined(ESP32)
   // If no filesystem was passed in, try accessing the CIRCUITPY drive.
   if (!fs) {
@@ -110,88 +101,70 @@ NeoPXL8status NeoPXL8readConfig(NeoPXL8config *config, FatVolume *fs,
     usb_msc.setCapacity(flash.size() / 512, 512);
     usb_msc.setUnitReady(true);
     usb_msc.begin();
-    if (!fatfs.begin(&flash)) {
-      strcpy(config->message, "No filesystem");
-      return NEO_ERR_FILESYS;
-    }
-    fs = &fatfs;
+    if (fatfs.begin(&flash))
+      fs = &fatfs;
     // If flash/msc is initialized here, it REMAINS ACTIVE after function
     // returns (is not stopped), to allow USB access to files (editing the
-    // config, moving over files, etc.) via the msc_* callbacks above.
+    // JSON, moving over files, etc.) via the msc_* callbacks above.
   }
 #endif
 
-  FatFile file;
-  NeoPXL8status status = NEO_OK;
+  DynamicJsonDocument doc(size);
 
-  // Open and decode JSON file...
-  if ((file = fs->open(filename, FILE_READ))) {
-    StaticJsonDocument<1024> doc; // Small, up to 1K max
-    DeserializationError error = deserializeJson(doc, file);
-    if (error) {
-      // Some JSON syntax error. Config message holds a brief summary.
-      strncpy(config->message, error.c_str(), sizeof(config->message) - 1);
-      config->message[sizeof(config->message) - 1] = 0;
-      status = NEO_ERR_JSON;
+  if (fs) { // Filesystem passed in or acquired by fatfs above
+    FatFile file;
+    // Open and decode JSON file...
+    if ((file = fs->open(filename, FILE_READ))) {
+      DeserializationError error = deserializeJson(doc, file);
+      if (error) // Usu. some JSON syntax error; build ERROR key/value
+        (void)deserializeJson(doc, "{\"ERROR\":error.c_str()}");
+      file.close();
     } else {
-      // Valid JSON, process the configuration...
-      JsonVariant v;
-      v = doc["pins"];
-      if (v.is<JsonArray>()) {
-        uint8_t n = v.size() < 8 ? v.size() : 8;
-        for (uint8_t i = 0; i < n; i++)
-          config->pins[i] = v[i].as<int>();
-      }
-      config->length = doc["length"] | config->length;
-      v = doc["order"];
-      if (v.is<const char *>()) {
-        // Although color order *could* be done by examining each character
-        // and some bit-fiddling, a string lookup table is used instead in
-        // case NeoPixel library changes how the color order bits work.
-        const struct {
-          const char *order; // Color order identifier, e.g. "GBRW"
-          uint8_t value;     // From Adafruit_NeoPixel.h, minus the KHZ bit
-        } order[] = {
-            "RGB",  NEO_RGB,  "RBG",  NEO_RBG,  "GRB",  NEO_GRB,
-            "GBR",  NEO_GBR,  "BRG",  NEO_BRG,  "BGR",  NEO_BGR,
-            "WRGB", NEO_WRGB, "WRBG", NEO_WRBG, "WGRB", NEO_WGRB,
-            "WGBR", NEO_WGBR, "WBRG", NEO_WBRG, "WBGR", NEO_WBGR,
-            "RWGB", NEO_RWGB, "RWBG", NEO_RWBG, "RGWB", NEO_RGWB,
-            "RGBW", NEO_RGBW, "RBWG", NEO_RBWG, "RBGW", NEO_RBGW,
-            "GWRB", NEO_GWRB, "GWBR", NEO_GWBR, "GRWB", NEO_GRWB,
-            "GRBW", NEO_GRBW, "GBWR", NEO_GBWR, "GBRW", NEO_GBRW,
-            "BWRG", NEO_BWRG, "BWGR", NEO_BWGR, "BRWG", NEO_BRWG,
-            "BRGW", NEO_BRGW, "BGWR", NEO_BGWR, "BGRW", NEO_BGRW,
-        };
-        for (int i = 0; i < (sizeof(order) / sizeof(order[0])); i++) {
-          if (!strcasecmp(v, order[i].order)) {
-            config->order = order[i].value + NEO_KHZ800;
-            break;
-          }
-        }
-      }
-      config->dither = doc["dither"] | config->dither;
-      // Sketches can include their own configurables in the JSON file.
-      // It's very rudimentary -- strings only (max length 20), sketch will
-      // need to do any int/float/etc conversion on its own, and strictly
-      // "flat," no hierarchy or nesting -- but does keep the sketch code
-      // very simple.
-      if (config->extra) {
-        for (int i = 0; config->extra[i].key; i++) {
-          v = doc[config->extra[i].key];
-          if (v.is<const char *>()) {
-            strncpy(config->extra[i].value, v,
-                    sizeof(config->extra[i].value) - 1);
-            config->extra[i].value[sizeof(config->extra[i].value) - 1] = 0;
-          }
-        }
-      }
+      (void)deserializeJson(doc, "{\"ERROR\":\"Can't open JSON file\"}");
     }
-    file.close();
   } else {
-    strcpy(config->message, "Can't open config");
-    status = NEO_ERR_FILE;
+    (void)deserializeJson(doc, "{\"ERROR\":\"No filesystem\"}");
   }
 
-  return status;
+  doc.shrinkToFit();
+  return doc;
+}
+
+// Convert pixel color order from string ("BGR") to NeoPixel lib constant.
+uint16_t NeoPXL8configColorOrder(JsonVariant v, uint16_t value) {
+  if (v.is<const char *>()) {
+    // Although color order *could* be done by examining each character
+    // and some bit-fiddling, a string lookup table is used instead in
+    // case NeoPixel library changes how the color order bits work.
+    const struct {
+      const char *order; // Color order identifier, e.g. "GBRW"
+      uint8_t value;     // From Adafruit_NeoPixel.h, minus the KHZ bit
+    } order[] = {
+        "RGB",  NEO_RGB,  "RBG",  NEO_RBG,  "GRB",  NEO_GRB,  "GBR",  NEO_GBR,
+        "BRG",  NEO_BRG,  "BGR",  NEO_BGR,  "WRGB", NEO_WRGB, "WRBG", NEO_WRBG,
+        "WGRB", NEO_WGRB, "WGBR", NEO_WGBR, "WBRG", NEO_WBRG, "WBGR", NEO_WBGR,
+        "RWGB", NEO_RWGB, "RWBG", NEO_RWBG, "RGWB", NEO_RGWB, "RGBW", NEO_RGBW,
+        "RBWG", NEO_RBWG, "RBGW", NEO_RBGW, "GWRB", NEO_GWRB, "GWBR", NEO_GWBR,
+        "GRWB", NEO_GRWB, "GRBW", NEO_GRBW, "GBWR", NEO_GBWR, "GBRW", NEO_GBRW,
+        "BWRG", NEO_BWRG, "BWGR", NEO_BWGR, "BRWG", NEO_BRWG, "BRGW", NEO_BRGW,
+        "BGWR", NEO_BGWR, "BGRW", NEO_BGRW,
+    };
+    for (int i = 0; i < (sizeof(order) / sizeof(order[0])); i++) {
+      if (!strcasecmp(v, order[i].order)) {
+        value = order[i].value;
+        break;
+      }
+    }
+  }
+
+  return value + NEO_KHZ800;
+}
+
+// Read list of (up to) 8 pins.
+void NeoPXL8configPins(JsonVariant v, int8_t pins[8]) {
+  if (v.is<JsonArray>()) {
+    uint8_t n = v.size() < 8 ? v.size() : 8;
+    for (uint8_t i = 0; i < n; i++)
+      pins[i] = v[i].as<int>();
+  }
 }

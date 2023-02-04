@@ -3,16 +3,10 @@
 
 // This is a companion to "move2serial" in the extras/Processing folder.
 
-#include <Adafruit_NeoPXL8.h>
+#include <Adafruit_NeoPXL8_config.h> // Also includes Adafruit_NeoPXL8.h and ArduinoJson.h
 
-// CHANGE these to match your strandtest findings or this WILL NOT WORK:
-
-int8_t pins[8] = { 6, 7, 9, 8, 13, 12, 11, 10 };
-#define COLOR_ORDER NEO_GRB
-
-#define SYNC_PIN -1 // -1 = not used
-
-// This example is minimally adapted from one in PJRC's OctoWS2811 Library:
+// This example is minimally adapted from one in PJRC's OctoWS2811 Library.
+// Original comments appear first, and Adafruit_NeoPXL8 changes follow that.
 
 /*  OctoWS2811 VideoDisplay.ino - Video on LEDs, from a PC, Mac, Raspberry Pi
     http://www.pjrc.com/teensy/td_libs_OctoWS2811.html
@@ -74,6 +68,18 @@ https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
     ports on the same motherboard, may give poor performance.
 */
 
+/*
+Adafruit_NeoPXL8 update:
+
+    Reads from neoplx8.config on CIRCUITPY filesystem (if present),
+    else defaults are used.
+    Bunch of #defines originally here (LED_WIDTH, LED_HEIGHT, etc.)
+    have been made variables, but otherwise the code structure is
+    minimally changed.
+    LEDs declared dynamically.
+*/
+
+#if 0
 // The actual arrangement of the LEDs connected to this Teensy 3.0 board.
 // LED_HEIGHT *must* be a multiple of 8.  When 16, 24, 32 are used, each
 // strip spans 2, 3, 4 rows.  LED_LAYOUT indicates the direction the strips
@@ -105,22 +111,60 @@ https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
 //#define VIDEO_YOFFSET  50    // display lower half
 //#define VIDEO_WIDTH    100
 //#define VIDEO_HEIGHT   50
+#endif
 
-
-const int ledsPerStrip = LED_WIDTH * LED_HEIGHT / 8;
-uint8_t imageBuffer[LED_WIDTH * LED_HEIGHT * 3];
+uint16_t led_width, led_height;
+uint8_t  led_layout;
+float    video_xoffset, video_yoffset, video_width, video_height;
+uint8_t *imageBuffer;
+uint32_t imageBufferSize;
 uint32_t lastFrameSyncTime = 0;
+int8_t   sync_pin = -1;
 
-Adafruit_NeoPXL8 leds(ledsPerStrip, pins, COLOR_ORDER);
+Adafruit_NeoPXL8 *leds;
+
+void error_handler(const char *message, uint16_t speed) {
+  Serial.print("Error: ");
+  Serial.println(message);
+  pinMode(LED_BUILTIN, OUTPUT);
+  for (;;) digitalWrite(LED_BUILTIN, (millis() / speed) & 1);
+}
 
 void setup() {
-  pinMode(SYNC_PIN, INPUT_PULLUP); // Frame Sync
+  // MUST do this before starting serial
+  DynamicJsonDocument doc = NeoPXL8configRead();
+
+  Serial.begin(115200);
   Serial.setTimeout(50);
-  if (!leds.begin()) {
-    pinMode(LED_BUILTIN, OUTPUT);
-    for (;;) digitalWrite(LED_BUILTIN, (millis() / 500) & 1);
-  }
-  leds.show();
+
+  const char* error = doc["ERROR"];
+  if (error) error_handler(error, 20);
+
+  int8_t pins[8] = NEOPXL8_DEFAULT_PINS;
+  NeoPXL8configPins(doc["pins"], pins);
+  uint16_t order = NeoPXL8configColorOrder(doc["order"], NEO_BGR);
+
+  sync_pin      = doc["video"]["sync_pin"]      | -1;
+  led_width     = doc["video"]["led_width"]     | 30;
+  led_height    = doc["video"]["led_height"]    | 16;
+  led_layout    = doc["video"]["led_layout"]    | 0;
+  video_xoffset = doc["video"]["video_xoffset"] | 0;
+  video_yoffset = doc["video"]["video_yoffset"] | 0;
+  video_width   = doc["video"]["video_width"]   | 100;
+  video_height  = doc["video"]["video_height"]  | 100;
+
+  leds = new Adafruit_NeoPXL8(led_width * led_height / 8, pins, order);
+  if (leds == NULL) error_handler("NeoPXL8 allocation", 100);
+
+  imageBufferSize = led_width * led_height * 3;
+  imageBuffer = (uint8_t *)malloc(imageBufferSize);
+  if (imageBuffer == NULL) error_handler("Image buffer allocation", 200);
+
+  if (!leds->begin()) error_handler("NeoPXL8 begin() failed", 500);
+
+  leds->show(); // LEDs off ASAP
+
+  if (sync_pin >= 0) pinMode(sync_pin, INPUT_PULLUP);
 }
 
 void loop() {
@@ -166,17 +210,17 @@ void loop() {
     unsigned int usecUntilFrameSync = 0;
     int count = Serial.readBytes((char *)&usecUntilFrameSync, 2);
     if (count != 2) return;
-    count = Serial.readBytes((char *)imageBuffer, sizeof(imageBuffer));
-    if (count == sizeof(imageBuffer)) {
+    count = Serial.readBytes((char *)imageBuffer, imageBufferSize);
+    if (count == imageBufferSize) {
       unsigned int endAt = micros();
       unsigned int usToWaitBeforeSyncOutput = 100;
       if (endAt - startAt < usecUntilFrameSync) {
         usToWaitBeforeSyncOutput = usecUntilFrameSync - (endAt - startAt);
       }
-      digitalWrite(SYNC_PIN, HIGH);
-      pinMode(SYNC_PIN, OUTPUT);
+      digitalWrite(sync_pin, HIGH);
+      pinMode(sync_pin, OUTPUT);
       delayMicroseconds(usToWaitBeforeSyncOutput);
-      digitalWrite(SYNC_PIN, LOW);
+      digitalWrite(sync_pin, LOW);
       // WS2811 update begins immediately after falling edge of frame sync
       convert_and_show();
     }
@@ -188,32 +232,32 @@ void loop() {
     unsigned int usecUntilFrameSync = 0;
     int count = Serial.readBytes((char *)&usecUntilFrameSync, 2);
     if (count != 2) return;
-    count = Serial.readBytes((char *)imageBuffer, sizeof(imageBuffer));
-    if (count == sizeof(imageBuffer)) {
-      digitalWrite(SYNC_PIN, HIGH);
-      pinMode(SYNC_PIN, OUTPUT);
+    count = Serial.readBytes((char *)imageBuffer, imageBufferSize);
+    if (count == imageBufferSize) {
+      digitalWrite(sync_pin, HIGH);
+      pinMode(sync_pin, OUTPUT);
       uint32_t now, elapsed;
       do {
         now = micros();
         elapsed = now - lastFrameSyncTime;
       } while (elapsed < usecUntilFrameSync); // wait
       lastFrameSyncTime = now;
-      digitalWrite(SYNC_PIN, LOW);
+      digitalWrite(sync_pin, LOW);
       // WS2811 update begins immediately after falling edge of frame sync
       convert_and_show();
     }
 
   } else if (startChar == '%') {
     // receive a "slave" frame - wait to show it until the frame sync arrives
-    pinMode(SYNC_PIN, INPUT_PULLUP);
+    pinMode(sync_pin, INPUT_PULLUP);
     unsigned int unusedField = 0;
     int count = Serial.readBytes((char *)&unusedField, 2);
     if (count != 2) return;
-    count = Serial.readBytes((char *)imageBuffer, sizeof(imageBuffer));
-    if (count == sizeof(imageBuffer)) {
+    count = Serial.readBytes((char *)imageBuffer, imageBufferSize);
+    if (count == imageBufferSize) {
       uint32_t startTime = millis();
-      while (digitalRead(SYNC_PIN) != HIGH && (millis() - startTime) < 30) ; // wait for sync high
-      while (digitalRead(SYNC_PIN) != LOW && (millis() - startTime) < 30) ;  // wait for sync high->low
+      while (digitalRead(sync_pin) != HIGH && (millis() - startTime) < 30) ; // wait for sync high
+      while (digitalRead(sync_pin) != LOW && (millis() - startTime) < 30) ;  // wait for sync high->low
       // WS2811 update begins immediately after falling edge of frame sync
       if ((millis() - startTime) < 30) {
         convert_and_show();
@@ -226,23 +270,23 @@ void loop() {
   } else if (startChar == '?') {
     // when the video application asks, give it all our info
     // for easy and automatic configuration
-    Serial.print(LED_WIDTH);
+    Serial.print(led_width);
     Serial.write(',');
-    Serial.print(LED_HEIGHT);
+    Serial.print(led_height);
     Serial.write(',');
-    Serial.print(LED_LAYOUT);
-    Serial.write(',');
-    Serial.print(0);
+    Serial.print(led_layout);
     Serial.write(',');
     Serial.print(0);
     Serial.write(',');
-    Serial.print(VIDEO_XOFFSET);
+    Serial.print(0);
     Serial.write(',');
-    Serial.print(VIDEO_YOFFSET);
+    Serial.print(video_xoffset);
     Serial.write(',');
-    Serial.print(VIDEO_WIDTH);
+    Serial.print(video_yoffset);
     Serial.write(',');
-    Serial.print(VIDEO_HEIGHT);
+    Serial.print(video_width);
+    Serial.write(',');
+    Serial.print(video_height);
     Serial.write(',');
     Serial.print(0);
     Serial.write(',');
@@ -258,25 +302,27 @@ void loop() {
 
 void convert_and_show() {
   uint8_t *ptr = imageBuffer;
-  for (int y=0; y<LED_HEIGHT; y++) {
-    for (int x=0; x<LED_WIDTH; x++) {
-      int pixelIndex;
-#if (LED_LAYOUT == 0)
-      // Always left-to-right
-      pixelIndex = y * LED_WIDTH + x;
-#else
-      // Even rows are left-to-right, odd are right-to-left
-      if (y & 1) {
-        pixelIndex = (y + 1) * LED_WIDTH - 1 - x;
-      } else {
-        pixelIndex = y * LED_WIDTH + x;
+  if (led_layout == 0) {
+    for (int y=0; y<led_height; y++) {
+      for (int x=0; x<led_width; x++) {
+        int pixelIndex = y * led_width + x; // Always left-to-right
+        uint8_t r = leds->gamma8(*ptr++);
+        uint8_t g = leds->gamma8(*ptr++);
+        uint8_t b = leds->gamma8(*ptr++);
+        leds->setPixelColor(pixelIndex, r, g, b);
       }
-#endif
-      uint8_t r = leds.gamma8(*ptr++);
-      uint8_t g = leds.gamma8(*ptr++);
-      uint8_t b = leds.gamma8(*ptr++);
-      leds.setPixelColor(pixelIndex, r, g, b);
+    }
+  } else {
+    for (int y=0; y<led_height; y++) {
+      for (int x=0; x<led_width; x++) {
+        // Even rows are left-to-right, odd are right-to-left
+        int pixelIndex = (y & 1) ? (y + 1) * led_width - 1 - x : y * led_width + x;
+        uint8_t r = leds->gamma8(*ptr++);
+        uint8_t g = leds->gamma8(*ptr++);
+        uint8_t b = leds->gamma8(*ptr++);
+        leds->setPixelColor(pixelIndex, r, g, b);
+      }
     }
   }
-  leds.show();
+  leds->show();
 }
