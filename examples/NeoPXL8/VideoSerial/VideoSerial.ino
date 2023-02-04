@@ -69,59 +69,70 @@ https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
 */
 
 /*
-Adafruit_NeoPXL8 update:
+    Adafruit_NeoPXL8 update:
 
-    Reads from neoplx8.config on CIRCUITPY filesystem (if present),
-    else defaults are used.
-    Bunch of #defines originally here (LED_WIDTH, LED_HEIGHT, etc.)
-    have been made variables, but otherwise the code structure is
-    minimally changed.
-    LEDs declared dynamically.
+    Aside from changes to convert from OctoWS2811 to Adafruit_NeoPXL8,
+    the big drastic change is to eliminate many compile-time constants
+    and instead place these in a JSON configuration file on a board's
+    CIRCUITPY flash filesystem (though this is Arduino code, we can
+    still make use of that drive), and declare the LEDs at run time.
+    Other than those alterations, the code is minimally changed.
+
+    The format of the configuration file CIRCUITPY/neopxl8.cfg will
+    resembe the following:
+
+    {
+      "pins" : [ 16, 17, 18, 19, 20, 21, 22, 23 ],
+      "order" : "BGR",
+      "sync_pin" : -1,
+      "led_width" : 30,
+      "led_height" : 16,
+      "led_layout" : 0,
+      "video_xoffset" : 0,
+      "video_yoffset" : 0,
+      "video_width" : 100,
+      "video_height" : 100
+    }
+
+    It's possible, quite likely even, that there will be other elements
+    in this file...for example, some NeoPXL8 code might use a single
+    "length" value rather than width/height, as not all projects are
+    using a grid. Elements can be ommitted if using the defaults (most
+    of the example values shown above ARE the defaults and don't really
+    need to be specified in the file, but are there for the sake of
+    example. Be warned that JSON is highly picky and even a single
+    missing or excess comma will stop everything, so read through it
+    very carefully if encountering an error.
 */
 
-#if 0
-// The actual arrangement of the LEDs connected to this Teensy 3.0 board.
-// LED_HEIGHT *must* be a multiple of 8.  When 16, 24, 32 are used, each
-// strip spans 2, 3, 4 rows.  LED_LAYOUT indicates the direction the strips
-// are arranged.  If 0, each strip begins on the left for its first row,
-// then goes right to left for its second row, then left to right,
-// zig-zagging for each successive row.
-#define LED_WIDTH      30   // number of LEDs horizontally
-#define LED_HEIGHT     16   // number of LEDs vertically (must be multiple of 8)
-#define LED_LAYOUT     1    // 0 = even rows left->right, 1 = even rows right->left
+// In original code, these were constants LED_WIDTH, LED_HEIGHT and
+// LED_LAYOUT. Defaults do NOT need to be assigned here...that's done in
+// setup() when reading the config file.
+// led_height MUST be a multiple of 8. When 16, 24, 32 are used, each strip
+// spans 2, 3, 4 rows. led_layout indicates how strips are arranged.
+uint16_t led_width;  // Number of LEDs horizontally
+uint16_t led_height; // Number of LEDs vertically
+uint8_t  led_layout; // 0 = even rows left->right, 1 = even rows right->left
 
 // The portion of the video image to show on this set of LEDs.  All 4 numbers
 // are percentages, from 0 to 100.  For a large LED installation with many
-// Teensy 3.0 boards driving groups of LEDs, these parameters allow you to
-// program each Teensy to tell the video application which portion of the
-// video it displays.  By reading these numbers, the video application can
-// automatically configure itself, regardless of which serial port COM number
-// or device names are assigned to each Teensy 3.0 by your operating system.
-#define VIDEO_XOFFSET  0
-#define VIDEO_YOFFSET  0       // display entire image
-#define VIDEO_WIDTH    100
-#define VIDEO_HEIGHT   100
+// boards driving groups of LEDs, these parameters allow you to program each
+// one to tell the video application which portion of the video it displays.
+// By reading these numbers, the video application can automatically configure
+// itself, regardless of which serial port COM number or device names are
+// assigned to each board by your operating system. 0/0/100/100 displays the
+// entire image on one board's LEDs. With two boards, this could be split
+// between them, 0/0/100/50 for the top and 0/50/100/50 for the bottom.
+// As with the led_* values, defaults do NOT need to be specified here,
+// that's done in setup().
+float video_xoffset, video_yoffset, video_width, video_height;
 
-//#define VIDEO_XOFFSET  0
-//#define VIDEO_YOFFSET  0     // display upper half
-//#define VIDEO_WIDTH    100
-//#define VIDEO_HEIGHT   50
-
-//#define VIDEO_XOFFSET  0
-//#define VIDEO_YOFFSET  50    // display lower half
-//#define VIDEO_WIDTH    100
-//#define VIDEO_HEIGHT   50
-#endif
-
-uint16_t led_width, led_height;
-uint8_t  led_layout;
-float    video_xoffset, video_yoffset, video_width, video_height;
-uint8_t *imageBuffer;
-uint32_t imageBufferSize;
+uint8_t *imageBuffer;     // Serial LED data is received here
+uint32_t imageBufferSize; // Size (in bytes) of imageBuffer
+int8_t   sync_pin = -1;   // If multiple boards, wire pins together
 uint32_t lastFrameSyncTime = 0;
-int8_t   sync_pin = -1;
 
-Adafruit_NeoPXL8 *leds;
+Adafruit_NeoPXL8 *leds; // NeoPXL8 object is allocated after reading config
 
 void error_handler(const char *message, uint16_t speed) {
   Serial.print("Error: ");
@@ -131,36 +142,47 @@ void error_handler(const char *message, uint16_t speed) {
 }
 
 void setup() {
-  // MUST do this before starting serial
+  // Start CIRCUITPY drive and read NeoPXL8 config
   DynamicJsonDocument doc = NeoPXL8configRead();
 
+  // Start Serial AFTER config read, else CIRCUITPY won't be available
+  // on attached computer.
   Serial.begin(115200);
+  while(!Serial);
   Serial.setTimeout(50);
 
-  const char* error = doc["ERROR"];
+  // How did config go? If ERROR key is present, print to Serial and stop.
+  const char *error = doc["ERROR"];
   if (error) error_handler(error, 20);
 
+  // A couple of variables can't be directly parsed from the JSON doc,
+  // they go through NeoPXL8 config functions to decode...
   int8_t pins[8] = NEOPXL8_DEFAULT_PINS;
   NeoPXL8configPins(doc["pins"], pins);
   uint16_t order = NeoPXL8configColorOrder(doc["order"], NEO_BGR);
 
-  sync_pin      = doc["video"]["sync_pin"]      | -1;
-  led_width     = doc["video"]["led_width"]     | 30;
-  led_height    = doc["video"]["led_height"]    | 16;
-  led_layout    = doc["video"]["led_layout"]    | 0;
-  video_xoffset = doc["video"]["video_xoffset"] | 0;
-  video_yoffset = doc["video"]["video_yoffset"] | 0;
-  video_width   = doc["video"]["video_width"]   | 100;
-  video_height  = doc["video"]["video_height"]  | 100;
+  // Other configurables are simpler. Defaults on right, after "|"
+  sync_pin      = doc["sync_pin"]      | -1;
+  led_width     = doc["led_width"]     | 30;
+  led_height    = doc["led_height"]    | 16;
+  led_layout    = doc["led_layout"]    | 0;
+  video_xoffset = doc["video_xoffset"] | 0;
+  video_yoffset = doc["video_yoffset"] | 0;
+  video_width   = doc["video_width"]   | 100;
+  video_height  = doc["video_height"]  | 100;
 
+  // Dynamically allocate NeoPXL8 object
   leds = new Adafruit_NeoPXL8(led_width * led_height / 8, pins, order);
   if (leds == NULL) error_handler("NeoPXL8 allocation", 100);
 
+  // And allocate imageBuffer
   imageBufferSize = led_width * led_height * 3;
   imageBuffer = (uint8_t *)malloc(imageBufferSize);
   if (imageBuffer == NULL) error_handler("Image buffer allocation", 200);
 
   if (!leds->begin()) error_handler("NeoPXL8 begin() failed", 500);
+
+  // At this point, everything is fully configured, allocated and started!
 
   leds->show(); // LEDs off ASAP
 
