@@ -3,7 +3,12 @@
 
 // This is a companion to "move2serial" in the extras/Processing folder.
 
-#include <Adafruit_NeoPXL8_config.h> // Also includes Adafruit_NeoPXL8.h and ArduinoJson.h
+#include <Adafruit_NeoPXL8.h>
+#include <SdFat.h>
+#include <FFS.h>
+// Allow comments in JSON file (not canon, but really helpful)
+#define ARDUINOJSON_ENABLE_COMMENTS 1
+#include <ArduinoJson.h>
 
 // This example is minimally adapted from one in PJRC's OctoWS2811 Library.
 // Original comments appear first, and Adafruit_NeoPXL8 changes follow that.
@@ -142,24 +147,37 @@ void error_handler(const char *message, uint16_t speed) {
 }
 
 void setup() {
-  // Start CIRCUITPY drive and read NeoPXL8 config
-  DynamicJsonDocument doc = NeoPXL8configRead();
+  FatVolume *fs = FFS::begin();
+  if (fs == NULL) error_handler("Filesys", 20);
 
-  // Start Serial AFTER config read, else CIRCUITPY won't be available
+  // Start CIRCUITPY drive and read NeoPXL8 config
+//  DynamicJsonDocument doc = NeoPXL8configRead();
+
+  // Start Serial AFTER FFS begin, else CIRCUITPY won't be available
   // on attached computer.
   Serial.begin(115200);
   while(!Serial);
   Serial.setTimeout(50);
 
+  FatFile file;
+  StaticJsonDocument<1024> doc;
+  DeserializationError error;
+
+  if ((file = fs->open("neopxl8.cfg", FILE_READ))) {
+    error = deserializeJson(doc, file);
+    file.close();
+  }
+
+  if(error) error_handler(error.c_str(), 50);
+
+#if 0
   // How did config go? If ERROR key is present, print to Serial and stop.
   const char *error = doc["ERROR"];
   if (error) error_handler(error, 20);
+#endif
 
-  // A couple of variables can't be directly parsed from the JSON doc,
-  // they go through NeoPXL8 config functions to decode...
   int8_t pins[8] = NEOPXL8_DEFAULT_PINS;
-  NeoPXL8configPins(doc["pins"], pins);
-  uint16_t order = NeoPXL8configColorOrder(doc["order"], NEO_BGR);
+  uint16_t order = NEO_BGR;
 
   // Other configurables are simpler. Defaults on right, after "|"
   sync_pin      = doc["sync_pin"]      | -1;
@@ -170,6 +188,27 @@ void setup() {
   video_yoffset = doc["video_yoffset"] | 0;
   video_width   = doc["video_width"]   | 100;
   video_height  = doc["video_height"]  | 100;
+
+  JsonVariant v = doc["pins"];
+  if (v.is<JsonArray>()) {
+    uint8_t n = v.size() < 8 ? v.size() : 8;
+    for (uint8_t i = 0; i < n; i++)
+      pins[i] = v[i].as<int>();
+  }
+
+  v = doc["order"];
+  if (v.is<const char *>()) order = Adafruit_NeoPixel::str2order(v);
+
+Serial.printf("pins: %d %d %d %d %d %d %d %d\n", pins[0], pins[1], pins[2], pins[3], pins[4], pins[5], pins[6], pins[7]);
+Serial.printf("order: %d\n", order);
+Serial.printf("sync_pin: %d\n", sync_pin);
+Serial.printf("led_width: %d\n", led_width);
+Serial.printf("led_height: %d\n", led_height);
+Serial.printf("led_layout: %d\n", led_layout);
+Serial.printf("video_xoffset: %f\n", video_xoffset);
+Serial.printf("video_yoffset: %f\n", video_yoffset);
+Serial.printf("video_width: %f\n", video_width);
+Serial.printf("video_height: %f\n", video_height);
 
   // Dynamically allocate NeoPXL8 object
   leds = new Adafruit_NeoPXL8(led_width * led_height / 8, pins, order);
