@@ -84,7 +84,7 @@ https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
     Other than those alterations, the code is minimally changed.
 
     The format of the configuration file CIRCUITPY/neopxl8.cfg will
-    resembe the following:
+    resemble the following:
 
     {
       "pins" : [ 16, 17, 18, 19, 20, 21, 22, 23 ],
@@ -151,7 +151,6 @@ void setup() {
   if (fs == NULL) error_handler("Filesys", 20);
 
   // Start CIRCUITPY drive and read NeoPXL8 config
-//  DynamicJsonDocument doc = NeoPXL8configRead();
 
   // Start Serial AFTER FFS begin, else CIRCUITPY won't be available
   // on attached computer.
@@ -167,14 +166,9 @@ void setup() {
     error = deserializeJson(doc, file);
     file.close();
   }
+// To do: handle file-not-found warning here (but maybe continue w/defaults)
 
   if(error) error_handler(error.c_str(), 50);
-
-#if 0
-  // How did config go? If ERROR key is present, print to Serial and stop.
-  const char *error = doc["ERROR"];
-  if (error) error_handler(error, 20);
-#endif
 
   int8_t pins[8] = NEOPXL8_DEFAULT_PINS;
   uint16_t order = NEO_BGR;
