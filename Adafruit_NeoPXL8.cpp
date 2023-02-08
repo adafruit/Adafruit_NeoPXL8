@@ -345,6 +345,7 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
       for (uint8_t i = 0; i < 8; i++) {
         if (pins[i] >= 0) {
           pio_gpio_init(pio, pins[i]);
+          gpio_set_drive_strength(pins[i], GPIO_DRIVE_STRENGTH_2MA);
           pindir_mask = 1 << pins[i];
           bitmask[i] = 1 << (pins[i] - least_pin);
         }
