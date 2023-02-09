@@ -17,12 +17,12 @@
     http://www.pjrc.com/teensy/td_libs_OctoWS2811.html
     Copyright (c) 2013 Paul Stoffregen, PJRC.COM, LLC
 
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
 
     The above copyright notice and this permission notice shall be included in
     all copies or substantial portions of the Software.
@@ -31,9 +31,9 @@
     IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
     FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
     AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-    THE SOFTWARE.
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
 
 Update: The movie2serial program which transmit data has moved to "extras"
 https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
@@ -74,17 +74,16 @@ https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
 */
 
 /*
-    Adafruit_NeoPXL8 update:
+    ADAFRUIT_NEOPXL8 UPDATE:
 
-    Aside from changes to convert from OctoWS2811 to Adafruit_NeoPXL8,
-    the big drastic change is to eliminate many compile-time constants
-    and instead place these in a JSON configuration file on a board's
-    CIRCUITPY flash filesystem (though this is Arduino code, we can
-    still make use of that drive), and declare the LEDs at run time.
-    Other than those alterations, the code is minimally changed.
+    Aside from changes to convert from OctoWS2811 to Adafruit_NeoPXL8, the
+    big drastic change here is to eliminate many compile-time constants and
+    instead place these in a JSON configuration file on a board's CIRCUITPY
+    flash filesystem (though this is Arduino code, we can still make use of
+    that drive), and declare the LEDs at run time. Other than those
+    alterations, the code is minimally changed. Paul did the real work. :)
 
-    The format of the configuration file CIRCUITPY/neopxl8.cfg will
-    resemble the following:
+    Run-time configuration is stored in CIRCUITPY/neopxl8.cfg and resembles:
 
     {
       "pins" : [ 16, 17, 18, 19, 20, 21, 22, 23 ],
@@ -99,25 +98,22 @@ https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
       "video_height" : 100
     }
 
-    It's possible, quite likely even, that there will be other elements
-    in this file...for example, some NeoPXL8 code might use a single
-    "length" value rather than width/height, as not all projects are
-    using a grid. Elements can be ommitted if using the defaults (most
-    of the example values shown above ARE the defaults and don't really
-    need to be specified in the file, but are there for the sake of
-    example. Be warned that JSON is highly picky and even a single
-    missing or excess comma will stop everything, so read through it
-    very carefully if encountering an error.
+    If this file is missing, or if any individual elements are unspecified,
+    defaults will be used (these are noted later in the code). It's possible,
+    likely even, that there will be additional elements in this file...
+    for example, some NeoPXL8 code might use a single "length" value rather
+    than width/height, as not all projects are using a grid. Be warned that
+    JSON is highly picky and even a single missing or excess comma will stop
+    everything, so read through it very carefully if encountering an error.
 */
 
 // In original code, these were constants LED_WIDTH, LED_HEIGHT and
-// LED_LAYOUT. Defaults do NOT need to be assigned here...that's done in
-// setup() when reading the config file.
+// LED_LAYOUT. Values here are defaults but can override in config file.
 // led_height MUST be a multiple of 8. When 16, 24, 32 are used, each strip
 // spans 2, 3, 4 rows. led_layout indicates how strips are arranged.
-uint16_t led_width;  // Number of LEDs horizontally
-uint16_t led_height; // Number of LEDs vertically
-uint8_t  led_layout; // 0 = even rows left->right, 1 = even rows right->left
+uint16_t led_width  = 30; // Number of LEDs horizontally
+uint16_t led_height = 16; // Number of LEDs vertically
+uint8_t  led_layout = 0;  // 0 = even rows left->right, 1 = right->left
 
 // The portion of the video image to show on this set of LEDs.  All 4 numbers
 // are percentages, from 0 to 100.  For a large LED installation with many
@@ -130,7 +126,10 @@ uint8_t  led_layout; // 0 = even rows left->right, 1 = even rows right->left
 // between them, 0/0/100/50 for the top and 0/50/100/50 for the bottom.
 // As with the led_* values, defaults do NOT need to be specified here,
 // that's done in setup().
-float video_xoffset, video_yoffset, video_width, video_height;
+float video_xoffset =   0.0;
+float video_yoffset =   0.0;
+float video_width   = 100.0;
+float video_height  = 100.0;
 
 uint8_t *imageBuffer;     // Serial LED data is received here
 uint32_t imageBufferSize; // Size (in bytes) of imageBuffer
@@ -142,73 +141,76 @@ Adafruit_NeoPXL8 *leds; // NeoPXL8 object is allocated after reading config
 void error_handler(const char *message, uint16_t speed) {
   Serial.print("Error: ");
   Serial.println(message);
-  pinMode(LED_BUILTIN, OUTPUT);
-  for (;;) digitalWrite(LED_BUILTIN, (millis() / speed) & 1);
+  if (speed) { // Fatal error, blink LED
+    pinMode(LED_BUILTIN, OUTPUT);
+    for (;;) digitalWrite(LED_BUILTIN, (millis() / speed) & 1);
+  } else { // Not fatal, just show message
+    Serial.println("Continuing with defaults");
+  }
 }
 
 void setup() {
-  FatVolume *fs = FFS::begin();
-  if (fs == NULL) error_handler("Filesys", 20);
-
-  // Start CIRCUITPY drive and read NeoPXL8 config
-
-  // Start Serial AFTER FFS begin, else CIRCUITPY won't be available
-  // on attached computer.
-  Serial.begin(115200);
-  while(!Serial);
-  Serial.setTimeout(50);
-
-  FatFile file;
-  StaticJsonDocument<1024> doc;
-  DeserializationError error;
-
-  if ((file = fs->open("neopxl8.cfg", FILE_READ))) {
-    error = deserializeJson(doc, file);
-    file.close();
-  }
-// To do: handle file-not-found warning here (but maybe continue w/defaults)
-
-  if(error) error_handler(error.c_str(), 50);
-
   int8_t pins[8] = NEOPXL8_DEFAULT_PINS;
   uint16_t order = NEO_BGR;
 
-  // Other configurables are simpler. Defaults on right, after "|"
-  sync_pin      = doc["sync_pin"]      | -1;
-  led_width     = doc["led_width"]     | 30;
-  led_height    = doc["led_height"]    | 16;
-  led_layout    = doc["led_layout"]    | 0;
-  video_xoffset = doc["video_xoffset"] | 0;
-  video_yoffset = doc["video_yoffset"] | 0;
-  video_width   = doc["video_width"]   | 100;
-  video_height  = doc["video_height"]  | 100;
+  // Start the CIRCUITPY flash filesystem first. Very important!
+  FatVolume *fs = FFS::begin();
 
-  JsonVariant v = doc["pins"];
-  if (v.is<JsonArray>()) {
-    uint8_t n = v.size() < 8 ? v.size() : 8;
-    for (uint8_t i = 0; i < n; i++)
-      pins[i] = v[i].as<int>();
-  }
+  // Start Serial AFTER FFS begin, else CIRCUITPY won't show on computer.
+  Serial.begin(115200);
+  //while(!Serial);
+  Serial.setTimeout(50);
 
-  v = doc["order"];
-  if (v.is<const char *>()) order = Adafruit_NeoPixel::str2order(v);
+  if (fs == NULL) {
+    error_handler("Can't access CIRCUITPY drive", 0);
+  } else {
+    FatFile file;
+    StaticJsonDocument<1024> doc;
+    DeserializationError error;
 
-Serial.printf("pins: %d %d %d %d %d %d %d %d\n", pins[0], pins[1], pins[2], pins[3], pins[4], pins[5], pins[6], pins[7]);
-Serial.printf("order: %d\n", order);
-Serial.printf("sync_pin: %d\n", sync_pin);
-Serial.printf("led_width: %d\n", led_width);
-Serial.printf("led_height: %d\n", led_height);
-Serial.printf("led_layout: %d\n", led_layout);
-Serial.printf("video_xoffset: %f\n", video_xoffset);
-Serial.printf("video_yoffset: %f\n", video_yoffset);
-Serial.printf("video_width: %f\n", video_width);
-Serial.printf("video_height: %f\n", video_height);
+    // Open NeoPXL8 configuration file and attempt to decode JSON data within.
+    if ((file = fs->open("neopxl8.cfg", FILE_READ))) {
+      error = deserializeJson(doc, file);
+      file.close();
+    } else {
+      error_handler("neopxl8.cfg not found", 0);
+    }
+
+    if(error) {
+      error_handler("neoplx8.cfg syntax error", 0);
+      Serial.print("JSON error: ");
+      Serial.println(error.c_str());
+    } else {
+      // Config is valid, override defaults in program variables...
+
+      JsonVariant v = doc["pins"];
+      if (v.is<JsonArray>()) {
+        uint8_t n = v.size() < 8 ? v.size() : 8;
+        for (uint8_t i = 0; i < n; i++)
+          pins[i] = v[i].as<int>();
+      }
+
+      v = doc["order"];
+      if (v.is<const char *>()) order = Adafruit_NeoPixel::str2order(v);
+
+      sync_pin      = doc["sync_pin"]      | sync_pin;
+      led_width     = doc["led_width"]     | led_width;
+      led_height    = doc["led_height"]    | led_height;
+      led_layout    = doc["led_layout"]    | led_layout;
+      video_xoffset = doc["video_xoffset"] | video_xoffset;
+      video_yoffset = doc["video_yoffset"] | video_yoffset;
+      video_width   = doc["video_width"]   | video_width;
+      video_height  = doc["video_height"]  | video_height;
+    } // end JSON OK
+  } // end filesystem OK
+
+  // Any errors after this point are unrecoverable and program will stop.
 
   // Dynamically allocate NeoPXL8 object
   leds = new Adafruit_NeoPXL8(led_width * led_height / 8, pins, order);
   if (leds == NULL) error_handler("NeoPXL8 allocation", 100);
 
-  // And allocate imageBuffer
+  // Allocate imageBuffer
   imageBufferSize = led_width * led_height * 3;
   imageBuffer = (uint8_t *)malloc(imageBufferSize);
   if (imageBuffer == NULL) error_handler("Image buffer allocation", 200);
