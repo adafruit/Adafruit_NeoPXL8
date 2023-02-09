@@ -153,6 +153,7 @@ void error_handler(const char *message, uint16_t speed) {
 }
 
 void setup() {
+  // CHANGE these to match your strandtest findings (or use .cfg file):
   int8_t pins[8] = NEOPXL8_DEFAULT_PINS;
   uint16_t order = NEO_GRB;
 

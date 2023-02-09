@@ -5,26 +5,24 @@
 // This is a companion to "move2serial" in the extras/Processing folder.
 
 #include <Adafruit_NeoPXL8.h>
+#include <SdFat.h>
+#include <FFS.h>
+#define ARDUINOJSON_ENABLE_COMMENTS 1
+#include <ArduinoJson.h>
 
-// CHANGE these to match your strandtest findings or this WILL NOT WORK:
-
-int8_t pins[8] = { 6, 7, 9, 8, 13, 12, 11, 10 };
-#define COLOR_ORDER NEO_GRB
-
-#define SYNC_PIN -1 // -1 = not used
-
-// This example is minimally adapted from one in PJRC's OctoWS2811 Library:
+// This example is adapted from one in PJRC's OctoWS2811 Library. Original
+// comments appear first, followed by Adafruit_NeoPXL8 changes.
 
 /*  OctoWS2811 VideoDisplay.ino - Video on LEDs, from a PC, Mac, Raspberry Pi
     http://www.pjrc.com/teensy/td_libs_OctoWS2811.html
     Copyright (c) 2013 Paul Stoffregen, PJRC.COM, LLC
 
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
 
     The above copyright notice and this permission notice shall be included in
     all copies or substantial portions of the Software.
@@ -33,13 +31,13 @@ int8_t pins[8] = { 6, 7, 9, 8, 13, 12, 11, 10 };
     IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
     FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
     AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-    THE SOFTWARE.
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
 
 Update: The movie2serial program which transmit data has moved to "extras"
 https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
- 
+
   Required Connections
   --------------------
     pin 2:  LED Strip #1    OctoWS2811 drives 8 LED Strips.
@@ -75,44 +73,68 @@ https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
     ports on the same motherboard, may give poor performance.
 */
 
-// The actual arrangement of the LEDs connected to this Teensy 3.0 board.
-// LED_HEIGHT *must* be a multiple of 8.  When 16, 24, 32 are used, each
-// strip spans 2, 3, 4 rows.  LED_LAYOUT indicates the direction the strips
-// are arranged.  If 0, each strip begins on the left for its first row,
-// then goes right to left for its second row, then left to right,
-// zig-zagging for each successive row.
-#define LED_WIDTH      30   // number of LEDs horizontally
-#define LED_HEIGHT     16   // number of LEDs vertically (must be multiple of 8)
-#define LED_LAYOUT     1    // 0 = even rows left->right, 1 = even rows right->left
+/*
+    ADAFRUIT_NEOPXL8 UPDATE:
+
+    Aside from changes to convert from OctoWS2811 to Adafruit_NeoPXL8, the
+    big drastic change here is to eliminate many compile-time constants and
+    instead place these in a JSON configuration file on a board's CIRCUITPY
+    flash filesystem (though this is Arduino code, we can still make use of
+    that drive), and declare the LEDs at run time. Other than those
+    alterations, the code is minimally changed. Paul did the real work. :)
+
+    Run-time configuration is stored in CIRCUITPY/neopxl8.cfg and resembles:
+
+    {
+      "pins" : [ 16, 17, 18, 19, 20, 21, 22, 23 ],
+      "order" : "GRB",
+      "sync_pin" : -1,
+      "led_width" : 30,
+      "led_height" : 16,
+      "led_layout" : 0,
+      "video_xoffset" : 0,
+      "video_yoffset" : 0,
+      "video_width" : 100,
+      "video_height" : 100
+    }
+
+    If this file is missing, or if any individual elements are unspecified,
+    defaults will be used (these are noted later in the code). It's possible,
+    likely even, that there will be additional elements in this file...
+    for example, some NeoPXL8 code might use a single "length" value rather
+    than width/height, as not all projects are using a grid. Be warned that
+    JSON is highly picky and even a single missing or excess comma will stop
+    everything, so read through it very carefully if encountering an error.
+*/
+
+// In original code, these were constants LED_WIDTH, LED_HEIGHT and
+// LED_LAYOUT. Values here are defaults but can override in config file.
+// led_height MUST be a multiple of 8. When 16, 24, 32 are used, each strip
+// spans 2, 3, 4 rows. led_layout indicates how strips are arranged.
+uint16_t led_width  = 30; // Number of LEDs horizontally
+uint16_t led_height = 16; // Number of LEDs vertically
+uint8_t  led_layout = 0;  // 0 = even rows left->right, 1 = right->left
 
 // The portion of the video image to show on this set of LEDs.  All 4 numbers
 // are percentages, from 0 to 100.  For a large LED installation with many
-// Teensy 3.0 boards driving groups of LEDs, these parameters allow you to
-// program each Teensy to tell the video application which portion of the
-// video it displays.  By reading these numbers, the video application can
-// automatically configure itself, regardless of which serial port COM number
-// or device names are assigned to each Teensy 3.0 by your operating system.
-#define VIDEO_XOFFSET  0
-#define VIDEO_YOFFSET  0       // display entire image
-#define VIDEO_WIDTH    100
-#define VIDEO_HEIGHT   100
+// boards driving groups of LEDs, these parameters allow you to program each
+// one to tell the video application which portion of the video it displays.
+// By reading these numbers, the video application can automatically configure
+// itself, regardless of which serial port COM number or device names are
+// assigned to each board by your operating system. 0/0/100/100 displays the
+// entire image on one board's LEDs. With two boards, this could be split
+// between them, 0/0/100/50 for the top and 0/50/100/50 for the bottom.
+uint8_t video_xoffset =   0;
+uint8_t video_yoffset =   0;
+uint8_t video_width   = 100;
+uint8_t video_height  = 100;
 
-//#define VIDEO_XOFFSET  0
-//#define VIDEO_YOFFSET  0     // display upper half
-//#define VIDEO_WIDTH    100
-//#define VIDEO_HEIGHT   50
-
-//#define VIDEO_XOFFSET  0
-//#define VIDEO_YOFFSET  50    // display lower half
-//#define VIDEO_WIDTH    100
-//#define VIDEO_HEIGHT   50
-
-
-const int ledsPerStrip = LED_WIDTH * LED_HEIGHT / 8;
-uint8_t imageBuffer[LED_WIDTH * LED_HEIGHT * 3];
+uint8_t *imageBuffer;     // Serial LED data is received here
+uint32_t imageBufferSize; // Size (in bytes) of imageBuffer
+int8_t   sync_pin = -1;   // If multiple boards, wire pins together
 uint32_t lastFrameSyncTime = 0;
 
-Adafruit_NeoPXL8HDR leds(ledsPerStrip, pins, COLOR_ORDER);
+Adafruit_NeoPXL8HDR *leds = NULL; // NeoPXL8HDR object is allocated after reading config
 
 #if defined(ARDUINO_ARCH_RP2040)
 
@@ -121,7 +143,7 @@ Adafruit_NeoPXL8HDR leds(ledsPerStrip, pins, COLOR_ORDER);
 // free for animation logic in the regular loop() function.
 
 void loop1() {
-  leds.refresh();
+  if (leds) leds->refresh();
 }
 
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
@@ -133,7 +155,7 @@ void loop1() {
 void loop0(void *param) {
   for(;;) {
     yield();
-    leds.refresh();
+    if (leds) leds->refresh();
   }
 }
 
@@ -152,20 +174,101 @@ void TC3_Handler() {
 }
 
 void timerCallback(void) {
-  leds.refresh();
+  if (leds) leds->refresh();
 }
 
 #endif // end SAMD
 
-void setup() {
-  pinMode(SYNC_PIN, INPUT_PULLUP); // Frame Sync
-  Serial.setTimeout(50);
-  if (!leds.begin()) {
+void error_handler(const char *message, uint16_t speed) {
+  Serial.print("Error: ");
+  Serial.println(message);
+  if (speed) { // Fatal error, blink LED
     pinMode(LED_BUILTIN, OUTPUT);
-    for (;;) digitalWrite(LED_BUILTIN, (millis() / 500) & 1);
+    for (;;) {
+      digitalWrite(LED_BUILTIN, (millis() / speed) & 1);
+      yield(); // Keep filesystem accessible for editing
+    }
+  } else { // Not fatal, just show message
+    Serial.println("Continuing with defaults");
   }
-  leds.setBrightness(65535, 2.6); // Full brightness, 2.6 gamma factor
-  leds.show();
+}
+
+void setup() {
+  // CHANGE these to match your strandtest findings (or use .cfg file):
+  int8_t pins[8] = NEOPXL8_DEFAULT_PINS;
+  uint16_t order = NEO_GRB;
+
+  // Start the CIRCUITPY flash filesystem first. Very important!
+  FatVolume *fs = FFS::begin();
+
+  // Start Serial AFTER FFS begin, else CIRCUITPY won't show on computer.
+  Serial.begin(115200);
+  //while(!Serial);
+  delay(1000);
+  Serial.setTimeout(50);
+
+  if (fs == NULL) {
+    error_handler("Can't access CIRCUITPY drive", 0);
+  } else {
+    FatFile file;
+    StaticJsonDocument<1024> doc;
+    DeserializationError error;
+
+    // Open NeoPXL8 configuration file and attempt to decode JSON data within.
+    if ((file = fs->open("neopxl8.cfg", FILE_READ))) {
+      error = deserializeJson(doc, file);
+      file.close();
+    } else {
+      error_handler("neopxl8.cfg not found", 0);
+    }
+
+    if(error) {
+      error_handler("neopxl8.cfg syntax error", 0);
+      Serial.print("JSON error: ");
+      Serial.println(error.c_str());
+    } else {
+      // Config is valid, override defaults in program variables...
+
+      JsonVariant v = doc["pins"];
+      if (v.is<JsonArray>()) {
+        uint8_t n = v.size() < 8 ? v.size() : 8;
+        for (uint8_t i = 0; i < n; i++)
+          pins[i] = v[i].as<int>();
+      }
+
+      v = doc["order"];
+      if (v.is<const char *>()) order = Adafruit_NeoPixel::str2order(v);
+
+      sync_pin      = doc["sync_pin"]      | sync_pin;
+      led_width     = doc["led_width"]     | led_width;
+      led_height    = doc["led_height"]    | led_height;
+      led_layout    = doc["led_layout"]    | led_layout;
+      video_xoffset = doc["video_xoffset"] | video_xoffset;
+      video_yoffset = doc["video_yoffset"] | video_yoffset;
+      video_width   = doc["video_width"]   | video_width;
+      video_height  = doc["video_height"]  | video_height;
+    } // end JSON OK
+  } // end filesystem OK
+
+  // Any errors after this point are unrecoverable and program will stop.
+
+  // Dynamically allocate NeoPXL8HDR object
+  leds = new Adafruit_NeoPXL8HDR(led_width * led_height / 8, pins, order);
+  if (leds == NULL) error_handler("NeoPXL8HDR allocation", 100);
+
+  // Allocate imageBuffer
+  imageBufferSize = led_width * led_height * 3;
+  imageBuffer = (uint8_t *)malloc(imageBufferSize);
+  if (imageBuffer == NULL) error_handler("Image buffer allocation", 200);
+
+  if (!leds->begin()) error_handler("NeoPXL8HDR begin() failed", 500);
+
+  // At this point, everything is fully configured, allocated and started!
+
+  leds->setBrightness(65535, 2.6); // Full brightness, 2.6 gamma factor
+  leds->show(); // LEDs off ASAP
+
+  if (sync_pin >= 0) pinMode(sync_pin, INPUT_PULLUP);
 
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
 
@@ -205,7 +308,7 @@ void loop() {
 //         Normally '*' is used when the sender controls the pace
 //         of playback by transmitting each frame as it should
 //         appear.
-//   
+//
 //   '$' = Frame of image data, with frame sync pulse to be sent
 //         a specified number of microseconds after the previous
 //         frame sync.  Normally this is used when the sender
@@ -223,7 +326,7 @@ void loop() {
 //         should be sent before the first '$' message, so many
 //         frames are not played quickly if time as elapsed since
 //         startup or prior video playing.
-//   
+//
 //   '?' = Query LED and Video parameters.  Teensy 3.0 responds
 //         with a comma delimited list of information.
 //
@@ -237,17 +340,17 @@ void loop() {
     unsigned int usecUntilFrameSync = 0;
     int count = Serial.readBytes((char *)&usecUntilFrameSync, 2);
     if (count != 2) return;
-    count = Serial.readBytes((char *)imageBuffer, sizeof(imageBuffer));
-    if (count == sizeof(imageBuffer)) {
+    count = Serial.readBytes((char *)imageBuffer, imageBufferSize);
+    if (count == imageBufferSize) {
       unsigned int endAt = micros();
       unsigned int usToWaitBeforeSyncOutput = 100;
       if (endAt - startAt < usecUntilFrameSync) {
         usToWaitBeforeSyncOutput = usecUntilFrameSync - (endAt - startAt);
       }
-      digitalWrite(SYNC_PIN, HIGH);
-      pinMode(SYNC_PIN, OUTPUT);
+      digitalWrite(sync_pin, HIGH);
+      pinMode(sync_pin, OUTPUT);
       delayMicroseconds(usToWaitBeforeSyncOutput);
-      digitalWrite(SYNC_PIN, LOW);
+      digitalWrite(sync_pin, LOW);
       // WS2811 update begins immediately after falling edge of frame sync
       convert_and_show();
     }
@@ -259,32 +362,32 @@ void loop() {
     unsigned int usecUntilFrameSync = 0;
     int count = Serial.readBytes((char *)&usecUntilFrameSync, 2);
     if (count != 2) return;
-    count = Serial.readBytes((char *)imageBuffer, sizeof(imageBuffer));
-    if (count == sizeof(imageBuffer)) {
-      digitalWrite(SYNC_PIN, HIGH);
-      pinMode(SYNC_PIN, OUTPUT);
+    count = Serial.readBytes((char *)imageBuffer, imageBufferSize);
+    if (count == imageBufferSize) {
+      digitalWrite(sync_pin, HIGH);
+      pinMode(sync_pin, OUTPUT);
       uint32_t now, elapsed;
       do {
         now = micros();
         elapsed = now - lastFrameSyncTime;
       } while (elapsed < usecUntilFrameSync); // wait
       lastFrameSyncTime = now;
-      digitalWrite(SYNC_PIN, LOW);
+      digitalWrite(sync_pin, LOW);
       // WS2811 update begins immediately after falling edge of frame sync
       convert_and_show();
     }
 
   } else if (startChar == '%') {
     // receive a "slave" frame - wait to show it until the frame sync arrives
-    pinMode(SYNC_PIN, INPUT_PULLUP);
+    pinMode(sync_pin, INPUT_PULLUP);
     unsigned int unusedField = 0;
     int count = Serial.readBytes((char *)&unusedField, 2);
     if (count != 2) return;
-    count = Serial.readBytes((char *)imageBuffer, sizeof(imageBuffer));
-    if (count == sizeof(imageBuffer)) {
+    count = Serial.readBytes((char *)imageBuffer, imageBufferSize);
+    if (count == imageBufferSize) {
       uint32_t startTime = millis();
-      while (digitalRead(SYNC_PIN) != HIGH && (millis() - startTime) < 30) ; // wait for sync high
-      while (digitalRead(SYNC_PIN) != LOW && (millis() - startTime) < 30) ;  // wait for sync high->low
+      while (digitalRead(sync_pin) != HIGH && (millis() - startTime) < 30) ; // wait for sync high
+      while (digitalRead(sync_pin) != LOW && (millis() - startTime) < 30) ;  // wait for sync high->low
       // WS2811 update begins immediately after falling edge of frame sync
       if ((millis() - startTime) < 30) {
         convert_and_show();
@@ -297,23 +400,23 @@ void loop() {
   } else if (startChar == '?') {
     // when the video application asks, give it all our info
     // for easy and automatic configuration
-    Serial.print(LED_WIDTH);
+    Serial.print(led_width);
     Serial.write(',');
-    Serial.print(LED_HEIGHT);
+    Serial.print(led_height);
     Serial.write(',');
-    Serial.print(LED_LAYOUT);
-    Serial.write(',');
-    Serial.print(0);
+    Serial.print(led_layout);
     Serial.write(',');
     Serial.print(0);
     Serial.write(',');
-    Serial.print(VIDEO_XOFFSET);
+    Serial.print(0);
     Serial.write(',');
-    Serial.print(VIDEO_YOFFSET);
+    Serial.print(video_xoffset);
     Serial.write(',');
-    Serial.print(VIDEO_WIDTH);
+    Serial.print(video_yoffset);
     Serial.write(',');
-    Serial.print(VIDEO_HEIGHT);
+    Serial.print(video_width);
+    Serial.write(',');
+    Serial.print(video_height);
     Serial.write(',');
     Serial.print(0);
     Serial.write(',');
@@ -329,25 +432,27 @@ void loop() {
 
 void convert_and_show() {
   uint8_t *ptr = imageBuffer;
-  for (int y=0; y<LED_HEIGHT; y++) {
-    for (int x=0; x<LED_WIDTH; x++) {
-      int pixelIndex;
-#if (LED_LAYOUT == 0)
-      // Always left-to-right
-      pixelIndex = y * LED_WIDTH + x;
-#else
-      // Even rows are left-to-right, odd are right-to-left
-      if (y & 1) {
-        pixelIndex = (y + 1) * LED_WIDTH - 1 - x;
-      } else {
-        pixelIndex = y * LED_WIDTH + x;
+  if (led_layout == 0) {
+    for (int y=0; y<led_height; y++) {
+      for (int x=0; x<led_width; x++) {
+        int pixelIndex = y * led_width + x; // Always left-to-right
+        uint8_t r = *ptr++;
+        uint8_t g = *ptr++;
+        uint8_t b = *ptr++;
+        leds->setPixelColor(pixelIndex, r, g, b);
       }
-#endif
-      uint8_t r = *ptr++;
-      uint8_t g = *ptr++;
-      uint8_t b = *ptr++;
-      leds.setPixelColor(pixelIndex, r, g, b);
     }
-  }
-  leds.show();
+  } else {
+    for (int y=0; y<led_height; y++) {
+      for (int x=0; x<led_width; x++) {
+        // Even rows are left-to-right, odd are right-to-left
+        int pixelIndex = (y & 1) ? (y + 1) * led_width - 1 - x : y * led_width + x;
+        uint8_t r = *ptr++;
+        uint8_t g = *ptr++;
+        uint8_t b = *ptr++;
+        leds->setPixelColor(pixelIndex, r, g, b);
+      }    
+    }      
+  }        
+  leds->show();
 }
