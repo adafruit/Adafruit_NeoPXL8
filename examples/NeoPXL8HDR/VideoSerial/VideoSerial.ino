@@ -5,7 +5,6 @@
 // This is a companion to "move2serial" in the extras/Processing folder.
 
 #include <Adafruit_NeoPXL8.h>
-#include <SdFat.h>
 #include <FFS.h>
 #define ARDUINOJSON_ENABLE_COMMENTS 1
 #include <ArduinoJson.h>
@@ -451,8 +450,8 @@ void convert_and_show() {
         uint8_t g = *ptr++;
         uint8_t b = *ptr++;
         leds->setPixelColor(pixelIndex, r, g, b);
-      }    
-    }      
-  }        
+      }
+    }
+  }
   leds->show();
 }

@@ -4,7 +4,6 @@
 // This is a companion to "move2serial" in the extras/Processing folder.
 
 #include <Adafruit_NeoPXL8.h>
-#include <SdFat.h>
 #include <FFS.h>
 // Allow comments in JSON file (not canon, but really helpful)
 #define ARDUINOJSON_ENABLE_COMMENTS 1
@@ -37,7 +36,7 @@
 
 Update: The movie2serial program which transmit data has moved to "extras"
 https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
- 
+
   Required Connections
   --------------------
     pin 2:  LED Strip #1    OctoWS2811 drives 8 LED Strips.
@@ -240,7 +239,7 @@ void loop() {
 //         Normally '*' is used when the sender controls the pace
 //         of playback by transmitting each frame as it should
 //         appear.
-//   
+//
 //   '$' = Frame of image data, with frame sync pulse to be sent
 //         a specified number of microseconds after the previous
 //         frame sync.  Normally this is used when the sender
@@ -258,7 +257,7 @@ void loop() {
 //         should be sent before the first '$' message, so many
 //         frames are not played quickly if time as elapsed since
 //         startup or prior video playing.
-//   
+//
 //   '?' = Query LED and Video parameters.  Teensy 3.0 responds
 //         with a comma delimited list of information.
 //
