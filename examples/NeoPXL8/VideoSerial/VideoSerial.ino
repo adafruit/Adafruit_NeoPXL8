@@ -10,8 +10,8 @@
 #define ARDUINOJSON_ENABLE_COMMENTS 1
 #include <ArduinoJson.h>
 
-// This example is minimally adapted from one in PJRC's OctoWS2811 Library.
-// Original comments appear first, and Adafruit_NeoPXL8 changes follow that.
+// This example is adapted from one in PJRC's OctoWS2811 Library. Original
+// comments appear first, and Adafruit_NeoPXL8 changes follow that.
 
 /*  OctoWS2811 VideoDisplay.ino - Video on LEDs, from a PC, Mac, Raspberry Pi
     http://www.pjrc.com/teensy/td_libs_OctoWS2811.html
@@ -87,7 +87,7 @@ https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
 
     {
       "pins" : [ 16, 17, 18, 19, 20, 21, 22, 23 ],
-      "order" : "BGR",
+      "order" : "GRB",
       "sync_pin" : -1,
       "led_width" : 30,
       "led_height" : 16,
@@ -126,10 +126,10 @@ uint8_t  led_layout = 0;  // 0 = even rows left->right, 1 = right->left
 // between them, 0/0/100/50 for the top and 0/50/100/50 for the bottom.
 // As with the led_* values, defaults do NOT need to be specified here,
 // that's done in setup().
-float video_xoffset =   0.0;
-float video_yoffset =   0.0;
-float video_width   = 100.0;
-float video_height  = 100.0;
+uint8_t video_xoffset =   0;
+uint8_t video_yoffset =   0;
+uint8_t video_width   = 100;
+uint8_t video_height  = 100;
 
 uint8_t *imageBuffer;     // Serial LED data is received here
 uint32_t imageBufferSize; // Size (in bytes) of imageBuffer
@@ -143,7 +143,10 @@ void error_handler(const char *message, uint16_t speed) {
   Serial.println(message);
   if (speed) { // Fatal error, blink LED
     pinMode(LED_BUILTIN, OUTPUT);
-    for (;;) digitalWrite(LED_BUILTIN, (millis() / speed) & 1);
+    for (;;) {
+      digitalWrite(LED_BUILTIN, (millis() / speed) & 1);
+      yield(); // Keep filesystem accessible for editing
+    }
   } else { // Not fatal, just show message
     Serial.println("Continuing with defaults");
   }
@@ -151,7 +154,7 @@ void error_handler(const char *message, uint16_t speed) {
 
 void setup() {
   int8_t pins[8] = NEOPXL8_DEFAULT_PINS;
-  uint16_t order = NEO_BGR;
+  uint16_t order = NEO_GRB;
 
   // Start the CIRCUITPY flash filesystem first. Very important!
   FatVolume *fs = FFS::begin();
@@ -159,6 +162,7 @@ void setup() {
   // Start Serial AFTER FFS begin, else CIRCUITPY won't show on computer.
   Serial.begin(115200);
   //while(!Serial);
+  delay(1000);
   Serial.setTimeout(50);
 
   if (fs == NULL) {
@@ -177,7 +181,7 @@ void setup() {
     }
 
     if(error) {
-      error_handler("neoplx8.cfg syntax error", 0);
+      error_handler("neopxl8.cfg syntax error", 0);
       Serial.print("JSON error: ");
       Serial.println(error.c_str());
     } else {
