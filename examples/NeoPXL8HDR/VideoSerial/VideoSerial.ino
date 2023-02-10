@@ -1,3 +1,6 @@
+// This sketch is Just Too Much for SAMD21 (M0) and SAMD51 (M4) boards.
+// Recommend RP2040/SCORPIO or ESP32-S3.
+
 // FIRST TIME HERE? START WITH THE NEOPXL8 (not HDR) strandtest EXAMPLE!
 // That code explains and helps troubshoot wiring and NeoPixel color format.
 // Then move on to NeoPXL8HDR strandtest, THEN try this one.
@@ -210,7 +213,7 @@ void setup() {
     error_handler("Can't access CIRCUITPY drive", 0);
   } else {
     FatFile file;
-    StaticJsonDocument<2048> doc;
+    StaticJsonDocument<1024> doc;
     DeserializationError error;
 
     // Open NeoPXL8 configuration file and attempt to decode JSON data within.

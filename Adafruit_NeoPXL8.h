@@ -555,7 +555,7 @@ protected:
     defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S3) ||                               \
     defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S3_NOPSRAM)
 #define NEOPXL8_DEFAULT_PINS                                                   \
-  { 13, 12, 11, 10, SCK, 5, 9, 6 }
+  { SCK, 5, 9, 6, 13, 12, 11, 10 }
 #elif defined(ADAFRUIT_METRO_M4_EXPRESS)
 #define NEOPXL8_DEFAULT_PINS                                                   \
   { 7, 4, 5, 6, 3, 2, 10, 11 }
