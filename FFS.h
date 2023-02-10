@@ -39,7 +39,7 @@
   @brief  FFS is a minimal class to assist in using a board's CIRCUITPY
           flash filesystem with Arduino code, and making it available to
           a host computer over USB.
-          All functions here are currently static -- you do not need to 
+          All functions here are currently static -- you do not need to
           declare an object (unless you want to). Since there's only one
           CIRCUITPY filesystem, library state is maintained internally and
           any of these functions can be called directly, e.g. FFS::begin().
