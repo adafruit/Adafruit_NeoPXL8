@@ -210,7 +210,7 @@ void setup() {
     error_handler("Can't access CIRCUITPY drive", 0);
   } else {
     FatFile file;
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<2048> doc;
     DeserializationError error;
 
     // Open NeoPXL8 configuration file and attempt to decode JSON data within.
