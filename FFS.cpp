@@ -63,7 +63,7 @@ static Adafruit_FlashTransport_SPI transport(EXTERNAL_FLASH_USE_CS,
 // distinct special board select...at compile-time, indistinguishable from
 // a stock M0 board, could go either way. Thus, the transport and flash
 // members are pointers, initialized at run-time depending on arguments
-// passed (or not) to the get_circuitpython_drive() function.
+// passed (or not) to the begin() function.
 #define HAXPRESS
 static Adafruit_FlashTransport_SPI *transport;
 static void *flash;
@@ -81,7 +81,7 @@ static bool changeflag = 0;
 
 // On Haxpress-capable boards, flash type (internal vs SPI) isn't known
 // at compile time, so callbacks are provided for both, and one set or
-// other is installed in get_circuitpython_drive().
+// other is installed in begin().
 
 static int32_t msc_read_cb_internal(uint32_t lba, void *buffer,
                                     uint32_t bufsize) {
