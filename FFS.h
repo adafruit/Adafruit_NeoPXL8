@@ -68,7 +68,7 @@ public:
              IMPORTANT: this function should always be called BEFORE
              Serial.begin().
     @param   cs   OPTIONAL  SPI flash chip-select pin. This should ONLY be
-                            qused on "Haxpress" boards (QT Py or Trinket M0
+                            used on "Haxpress" boards (QT Py or Trinket M0
                             with flash chip retrofitted). For most boards,
                             including unmodified QT Py or Trinket M0, do not
                             pass any arguments.
