@@ -1,3 +1,6 @@
+// This sketch is Just Too Much for SAMD21 (M0) and SAMD51 (M4) boards.
+// Recommend RP2040/SCORPIO or ESP32-S3.
+
 // FIRST TIME HERE? START WITH THE NEOPXL8 (not HDR) strandtest EXAMPLE!
 // That code explains and helps troubshoot wiring and NeoPixel color format.
 // Then move on to NeoPXL8HDR strandtest, THEN try this one.
@@ -6,26 +9,25 @@
 // It plays preconverted videos from the on-board flash filesystem.
 
 #include <Adafruit_NeoPXL8.h>
+#include <Adafruit_CPFS.h> // For accessing CIRCUITPY drive
+#define ARDUINOJSON_ENABLE_COMMENTS 1
+#include <ArduinoJson.h>
 
-// CHANGE these to match your strandtest findings or this WILL NOT WORK:
-
-int8_t pins[8] = { 6, 7, 9, 8, 13, 12, 11, 10 };
-#define COLOR_ORDER NEO_GRB
-
-#define SYNC_PIN -1 // -1 = not used
-
-// This example is minimally adapted from one in PJRC's OctoWS2811 Library:
+// This example is adapted from one in PJRC's OctoWS2811 Library. Original
+// comments appear first, and Adafruit_NeoPXL8 changes follow that. Any
+// original comments about "SD card" now apply to a board's CIRCUITPY flash
+// filesystem instead.
 
 /*  OctoWS2811 VideoSDcard.ino - Video on LEDs, played from SD Card
     http://www.pjrc.com/teensy/td_libs_OctoWS2811.html
     Copyright (c) 2014 Paul Stoffregen, PJRC.COM, LLC
 
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
 
     The above copyright notice and this permission notice shall be included in
     all copies or substantial portions of the Software.
@@ -34,9 +36,9 @@ int8_t pins[8] = { 6, 7, 9, 8, 13, 12, 11, 10 };
     IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
     FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
     AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-    THE SOFTWARE.
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
 
 Update: The programs to prepare the SD card video file have moved to "extras"
 https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
@@ -50,7 +52,7 @@ https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
 
   See the included "hardware.jpg" image for suggested pin connections,
   with 2 cuts and 1 solder bridge needed for the SD card pin 3 chip select.
- 
+
   Required Connections
   --------------------
     pin 2:  LED Strip #1    OctoWS2811 drives 8 LED Strips.
@@ -70,45 +72,66 @@ https://github.com/PaulStoffregen/OctoWS2811/tree/master/extras
     pin 13: SD Card, SCLK
 */
 
-#include "SPI.h"
-#include "SdFat.h"
-#include "Adafruit_SPIFlash.h"
-#include "Adafruit_TinyUSB.h"
+/*
+    ADAFRUIT_NEOPXL8 UPDATE:
 
-#define LED_WIDTH    30   // number of LEDs horizontally
-#define LED_HEIGHT   16   // number of LEDs vertically (must be multiple of 8)
-#define LED_LAYOUT   1    // 0 = even rows left->right, 1 = even rows right->left
+    Aside from changes to convert from OctoWS2811 to Adafruit_NeoPXL8, the
+    big drastic change here is to eliminate many compile-time constants and
+    instead place these in a JSON configuration file on a board's CIRCUITPY
+    flash filesystem (though this is Arduino code, we can still make use of
+    that drive), and declare the LEDs at run time. Other than those
+    alterations, the code is minimally changed. Paul did the real work. :)
 
-#define FILENAME     "mymovie.bin"
+    Run-time configuration is stored in CIRCUITPY/neopxl8.cfg and resembles:
 
-const int ledsPerStrip = LED_WIDTH * LED_HEIGHT / 8;
-uint8_t imageBuffer[LED_WIDTH * LED_HEIGHT * 3];
-uint32_t timeOfLastFrame = 0;
-bool playing = false;
+    {
+      "pins" : [ 16, 17, 18, 19, 20, 21, 22, 23 ],
+      "order" : "GRB",
+      "led_width" : 30,
+      "led_height" : 16,
+      "led_layout" : 0
+    }
 
-Adafruit_NeoPXL8HDR leds(ledsPerStrip, pins, COLOR_ORDER);
+    If this file is missing, or if any individual elements are unspecified,
+    defaults will be used (these are noted later in the code). It's possible,
+    likely even, that there will be additional elements in this file...
+    for example, some NeoPXL8 code might use a single "length" value rather
+    than width/height, as not all projects are using a grid. Be warned that
+    JSON is highly picky and even a single missing or excess comma will stop
+    everything, so read through it very carefully if encountering an error.
+*/
 
-// From tinyUSB msc_external_flash example
-#if defined(ARDUINO_ARCH_RP2040)
-  Adafruit_FlashTransport_RP2040 flashTransport;
-#elif defined(CONFIG_IDF_TARGET_ESP32S3)
-  Adafruit_FlashTransport_ESP32 flashTransport;
-#else
-  #if defined(EXTERNAL_FLASH_USE_QSPI)
-    Adafruit_FlashTransport_QSPI flashTransport;
-  #elif defined(EXTERNAL_FLASH_USE_SPI)
-    Adafruit_FlashTransport_SPI flashTransport(EXTERNAL_FLASH_USE_CS, EXTERNAL_FLASH_USE_SPI);
-  #else
-    #error No QSPI/SPI flash are defined on your board variant.h !
-  #endif
-#endif
+#define FILENAME "mymovie.bin"
 
-Adafruit_SPIFlash flash(&flashTransport);
+// In original code, these were constants LED_WIDTH, LED_HEIGHT and
+// LED_LAYOUT. Values here are defaults but can override in config file.
+// led_height MUST be a multiple of 8. When 16, 24, 32 are used, each strip
+// spans 2, 3, 4 rows. led_layout indicates how strips are arranged.
+uint16_t led_width  = 30; // Number of LEDs horizontally
+uint16_t led_height = 16; // Number of LEDs vertically
+uint8_t  led_layout = 0;  // 0 = even rows left->right, 1 = right->left
 
-FatFileSystem fatfs; // file system object from SdFat
 FatFile file;
-Adafruit_USBD_MSC usb_msc; // USB Mass Storage object
-bool fs_changed = true; // Set to true when PC write to flash
+bool playing = false;
+uint32_t timeOfLastFrame = 0;
+uint8_t *imageBuffer;     // LED data from filesystem is staged here
+uint32_t imageBufferSize; // Size (in bytes) of imageBuffer
+
+Adafruit_NeoPXL8HDR *leds = NULL;
+
+void error_handler(const char *message, uint16_t speed) {
+  Serial.print("Error: ");
+  Serial.println(message);
+  if (speed) { // Fatal error, blink LED
+    pinMode(LED_BUILTIN, OUTPUT);
+    for (;;) {
+      digitalWrite(LED_BUILTIN, (millis() / speed) & 1);
+      yield(); // Keep filesystem accessible for editing
+    }
+  } else { // Not fatal, just show message
+    Serial.println("Continuing with defaults");
+  }
+}
 
 #if defined(ARDUINO_ARCH_RP2040)
 
@@ -117,14 +140,14 @@ bool fs_changed = true; // Set to true when PC write to flash
 // free for animation logic in the regular loop() function.
 
 void loop1() {
-  leds.refresh();
+  if (leds) leds->refresh();
 }
 
 // Pause just a moment before starting the refresh() loop.
 // Mass storage has a lot to do on startup and the sketch locks up
 // without this. So far it's only needed on the MSC+HDR example.
 void setup1() {
-  delay(100);
+  delay(1000);
 }
 
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
@@ -136,7 +159,7 @@ void setup1() {
 void loop0(void *param) {
   for(;;) {
     yield();
-    leds.refresh();
+    if (leds) leds->refresh();
   }
 }
 
@@ -155,33 +178,87 @@ void TC3_Handler() {
 }
 
 void timerCallback(void) {
-  leds.refresh();
+  if (leds) leds->refresh();
 }
 
 #endif // end SAMD
 
 void setup() {
-  // Flash setup from tinyUSB msc_external_flash example
-  flash.begin();
-  // Set disk vendor id, product id and revision with string up to 8, 16, 4 characters respectively
-  usb_msc.setID("Adafruit", "External Flash", "1.0");
-  usb_msc.setReadWriteCallback(msc_read_cb, msc_write_cb, msc_flush_cb); // Set callback
-  // Set disk size, block size should be 512 regardless of spi flash page size
-  usb_msc.setCapacity(flash.size()/512, 512);
-  usb_msc.setUnitReady(true); // MSC is ready for read/write
-  usb_msc.begin();
-  fatfs.begin(&flash); // Init file system on the flash
+  // CHANGE these to match your strandtest findings (or use .cfg file):
+  int8_t pins[8] = NEOPXL8_DEFAULT_PINS;
+  uint16_t order = NEO_GRB;
 
+  // Start the CIRCUITPY flash filesystem first. Very important!
+  FatVolume *fs = Adafruit_CPFS::begin();
+
+  // Start Serial AFTER FFS begin, else CIRCUITPY won't show on computer.
   Serial.begin(115200);
-  //while (!Serial) ;
+  //while(!Serial);
+  delay(1000);
+  Serial.setTimeout(50);
   Serial.println("VideoMSC");
 
-  if (!leds.begin()) {
-    pinMode(LED_BUILTIN, OUTPUT);
-    for (;;) digitalWrite(LED_BUILTIN, (millis() / 500) & 1);
-  }
-  leds.setBrightness(65535, 2.6); // Full brightness, 2.6 gamma factor
-  leds.show();
+  if (fs == NULL) {
+    error_handler("Can't access CIRCUITPY drive", 0);
+  } else {
+    StaticJsonDocument<1024> doc;
+    DeserializationError error;
+
+    // Open NeoPXL8 configuration file and attempt to decode JSON data within.
+    if ((file = fs->open("neopxl8.cfg", FILE_READ))) {
+      error = deserializeJson(doc, file);
+      file.close();
+    } else {
+      error_handler("neopxl8.cfg not found", 0);
+    }
+
+    if(error) {
+      error_handler("neopxl8.cfg syntax error", 0);
+      Serial.print("JSON error: ");
+      Serial.println(error.c_str());
+    } else {
+      // Config is valid, override defaults in program variables...
+
+      JsonVariant v = doc["pins"];
+      if (v.is<JsonArray>()) {
+        uint8_t n = v.size() < 8 ? v.size() : 8;
+        for (uint8_t i = 0; i < n; i++)
+          pins[i] = v[i].as<int>();
+      }
+
+      v = doc["order"];
+      if (v.is<const char *>()) order = Adafruit_NeoPixel::str2order(v);
+
+      led_width  = doc["led_width"]  | led_width;
+      led_height = doc["led_height"] | led_height;
+      led_layout = doc["led_layout"] | led_layout;
+    } // end JSON OK
+  } // end filesystem OK
+
+  // Any errors after this point are unrecoverable and program will stop.
+
+    // Dynamically allocate NeoPXL8 object
+  leds = new Adafruit_NeoPXL8HDR(led_width * led_height / 8, pins, order);
+  if (leds == NULL) error_handler("NeoPXL8 allocation", 100);
+
+  // Allocate imageBuffer
+  imageBufferSize = led_width * led_height * 3;
+  imageBuffer = (uint8_t *)malloc(imageBufferSize);
+  if (imageBuffer == NULL) error_handler("Image buffer allocation", 200);
+
+  if (!leds->begin()) error_handler("NeoPXL8 begin() failed", 500);
+
+  // At this point, everything but input file is ready to go!
+
+  leds->setBrightness(65535, 2.6); // Full brightness, 2.6 gamma factor
+  leds->show(); // LEDs off ASAP
+
+  bool status = file.open(FILENAME, O_RDONLY);
+  if (!status) error_handler("Can't open movie .bin file", 1000);
+  Serial.println("File opened");
+  delay(500); // Give MSC a moment to compose itself
+  playing = true;
+  timeOfLastFrame = 0;
 
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
 
@@ -205,12 +282,6 @@ void setup() {
   zerotimer.enable(true);
 
 #endif // end SAMD
-
-  bool status = file.open(FILENAME, O_RDONLY);
-  if (!status) stopWithErrorMessage("Could not read " FILENAME);
-  Serial.println("File opened");
-  playing = true;
-  timeOfLastFrame = 0;
 }
 
 // REMAINDER OF CODE IS NEARLY IDENTICAL TO NON-HDR VERSION. This version
@@ -273,8 +344,8 @@ void loop()
         unsigned int usec = header[3] | (header[4] << 8);
         unsigned int readsize = size;
 	      //Serial.printf("v: %u %u\n", size, usec);
-        if (readsize > sizeof(imageBuffer)) {
-          readsize = sizeof(imageBuffer);
+        if (readsize > imageBufferSize) {
+          readsize = imageBufferSize;
         }
         if (sd_card_read(imageBuffer, readsize)) {
           uint32_t now;
@@ -345,53 +416,29 @@ void error(const char *str)
   playing = false;
 }
 
-// when an error happens during setup, give up and print a message
-// to the serial monitor.
-void stopWithErrorMessage(const char *str)
-{
-  while (1) {
-    Serial.println(str);
-    delay(1000);
-  }
-}
-
 void convert_and_show() {
   uint8_t *ptr = imageBuffer;
-  for (int y=0; y<LED_HEIGHT; y++) {
-    for (int x=0; x<LED_WIDTH; x++) {
-      int pixelIndex;
-#if (LED_LAYOUT == 0)
-      // Always left-to-right
-      pixelIndex = y * LED_WIDTH + x;
-#else
-      // Even rows are left-to-right, odd are right-to-left
-      if (y & 1) {
-        pixelIndex = (y + 1) * LED_WIDTH - 1 - x;
-      } else {
-        pixelIndex = y * LED_WIDTH + x;
+  if (led_layout == 0) {
+    for (int y=0; y<led_height; y++) {
+      for (int x=0; x<led_width; x++) {
+        int pixelIndex = y * led_width + x; // Always left-to-right
+        uint8_t r = *ptr++;
+        uint8_t g = *ptr++;
+        uint8_t b = *ptr++;
+        leds->setPixelColor(pixelIndex, r, g, b);
       }
-#endif
-      uint8_t r = *ptr++;
-      uint8_t g = *ptr++;
-      uint8_t b = *ptr++;
-      leds.setPixelColor(pixelIndex, r, g, b);
+    }
+  } else {
+    for (int y=0; y<led_height; y++) {
+      for (int x=0; x<led_width; x++) {
+        // Even rows are left-to-right, odd are right-to-left
+        int pixelIndex = (y & 1) ? (y + 1) * led_width - 1 - x : y * led_width + x;
+        uint8_t r = *ptr++;
+        uint8_t g = *ptr++;
+        uint8_t b = *ptr++;
+        leds->setPixelColor(pixelIndex, r, g, b);
+      }
     }
   }
-  leds.show();
-}
-
-// More code from tinyUSB msc_external_flash example; commented there
-
-int32_t msc_read_cb (uint32_t lba, void* buffer, uint32_t bufsize) {
-  return flash.readBlocks(lba, (uint8_t*) buffer, bufsize/512) ? bufsize : -1;
-}
-
-int32_t msc_write_cb (uint32_t lba, uint8_t* buffer, uint32_t bufsize) {
-  return flash.writeBlocks(lba, buffer, bufsize/512) ? bufsize : -1;
-}
-
-void msc_flush_cb (void) {
-  flash.syncBlocks();
-  fatfs.cacheClear();
-  fs_changed = true;
+  leds->show();
 }
