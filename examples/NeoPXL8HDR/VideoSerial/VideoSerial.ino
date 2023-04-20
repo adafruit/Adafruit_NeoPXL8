@@ -8,7 +8,7 @@
 // This is a companion to "move2serial" in the extras/Processing folder.
 
 #include <Adafruit_NeoPXL8.h>
-#include <FFS.h>
+#include <Adafruit_CPFS.h> // For accessing CIRCUITPY drive
 #define ARDUINOJSON_ENABLE_COMMENTS 1
 #include <ArduinoJson.h>
 
@@ -201,7 +201,7 @@ void setup() {
   uint16_t order = NEO_GRB;
 
   // Start the CIRCUITPY flash filesystem first. Very important!
-  FatVolume *fs = FFS::begin();
+  FatVolume *fs = Adafruit_CPFS::begin();
 
   // Start Serial AFTER FFS begin, else CIRCUITPY won't show on computer.
   Serial.begin(115200);
