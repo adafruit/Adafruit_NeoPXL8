@@ -150,6 +150,9 @@ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="clas
 <tr class="memitem:aff4189faa7350366e6e86ee0140ab2b8"><td class="memItemLeft" align="right" valign="top">uint32_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8_h_d_r.html#aff4189faa7350366e6e86ee0140ab2b8">getFPS</a> (void) const</td></tr>
 <tr class="memdesc:aff4189faa7350366e6e86ee0140ab2b8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Query overall display refresh rate in frames-per-second. This is only an estimate and requires a moment to stabilize; will initially be 0. It's really only helpful on RP2040 where the refresh loop runs full-tilt on its own core; on SAMD, refresh is handled with a fixed timer interrupt.  <a href="#aff4189faa7350366e6e86ee0140ab2b8">More...</a><br /></td></tr>
 <tr class="separator:aff4189faa7350366e6e86ee0140ab2b8"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5511eebc38a3c76144e9f4ed4c1d378d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8_h_d_r.html#a5511eebc38a3c76144e9f4ed4c1d378d">clear</a> (void)</td></tr>
+<tr class="memdesc:a5511eebc38a3c76144e9f4ed4c1d378d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Fill the whole NeoPixel strip with 0 / black / off.  <a href="#a5511eebc38a3c76144e9f4ed4c1d378d">More...</a><br /></td></tr>
+<tr class="separator:a5511eebc38a3c76144e9f4ed4c1d378d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="inherit_header pub_methods_class_adafruit___neo_p_x_l8"><td colspan="2" onclick="javascript:toggleInherit('pub_methods_class_adafruit___neo_p_x_l8')"><img src="closed.png" alt="-"/>&#160;Public Member Functions inherited from <a class="el" href="class_adafruit___neo_p_x_l8.html">Adafruit_NeoPXL8</a></td></tr>
 <tr class="memitem:ac55a29f558560894eed7c4cfbb9df8e8 inherit pub_methods_class_adafruit___neo_p_x_l8"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_adafruit___neo_p_x_l8.html#ac55a29f558560894eed7c4cfbb9df8e8">Adafruit_NeoPXL8</a> (uint16_t n, int8_t *p=NULL, neoPixelType t=NEO_GRB)</td></tr>
 <tr class="memdesc:ac55a29f558560894eed7c4cfbb9df8e8 inherit pub_methods_class_adafruit___neo_p_x_l8"><td class="mdescLeft">&#160;</td><td class="mdescRight">NeoPXL8 constructor. Instantiates a new NeoPXL8 object (must follow with a <a class="el" href="class_adafruit___neo_p_x_l8.html#a8397acf6ef56e500268b10660fd31c0d" title="Allocate buffers and initialize hardware for NeoPXL8 output. ">begin()</a> call to alloc buffers and init hardware).  <a href="class_adafruit___neo_p_x_l8.html#ac55a29f558560894eed7c4cfbb9df8e8">More...</a><br /></td></tr>
@@ -1060,6 +1063,35 @@ uint8_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
 
 <p>Query overall display refresh rate in frames-per-second. This is only an estimate and requires a moment to stabilize; will initially be 0. It's really only helpful on RP2040 where the refresh loop runs full-tilt on its own core; on SAMD, refresh is handled with a fixed timer interrupt. </p>
 <dl class="section return"><dt>Returns</dt><dd>Integer frames (pixel refreshes) per second. </dd></dl>
+
+</div>
+</div>
+<a id="a5511eebc38a3c76144e9f4ed4c1d378d"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5511eebc38a3c76144e9f4ed4c1d378d">&#9670;&nbsp;</a></span>clear()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void Adafruit_NeoPXL8HDR::clear </td>
+          <td>(</td>
+          <td class="paramtype">void&#160;</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Fill the whole NeoPixel strip with 0 / black / off. </p>
+<dl class="section note"><dt>Note</dt><dd>Overloaded from Adafruit_NeoPixel because stored different here. </dd></dl>
 
 </div>
 </div>
