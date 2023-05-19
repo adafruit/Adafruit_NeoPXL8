@@ -513,7 +513,7 @@ public:
   uint32_t getFPS(void) const { return fps; }
 
   /*!
-    @brief   Fill the whole NeoPixel strip with 0 / black / off. 
+    @brief   Fill the whole NeoPixel strip with 0 / black / off.
     @note    Overloaded from Adafruit_NeoPixel because stored different here.
   */ 
   void clear(void) { memset(pixel_buf[2], 0, numBytes * sizeof(uint16_t)); }
