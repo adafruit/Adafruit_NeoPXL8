@@ -179,6 +179,7 @@ protected:
   uint8_t sm;                    ///< State machine #
   int dma_channel;               ///< DMA channel #
   dma_channel_config dma_config; ///< DMA configuration
+  uint offset;
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
   gdma_channel_handle_t dma_chan; ///< DMA channel
   dma_descriptor_t *desc;         ///< DMA descriptor pointer
