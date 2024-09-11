@@ -199,7 +199,7 @@ uint8_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="c
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramname">n</td><td>Length of each NeoPixel strand (total number of pixels will be 8X this). </td></tr>
-    <tr><td class="paramname">p</td><td>Optional int8_t array of eight pin numbers for NeoPixel strands 0-7. There are specific hardware limitations as to which pins can be used, see the example sketch. If fewer than 8 outputs are needed, assign a value of -1 to the unused outputs, keeping in mind that this will always still use the same amount of memory as 8-way output. If unspecified (or if NULL is passed), a default 8-pin setup will be used (see example sketch). On RP2040, these are GP## numbers, not necessarily the digital pin numbers silkscreened on the board. </td></tr>
+    <tr><td class="paramname">p</td><td>Optional int8_t array of eight pin numbers for NeoPixel strands 0-7. There are specific hardware limitations as to which pins can be used, see the example sketch. If fewer than 8 outputs are needed, assign a value of -1 to the unused outputs, keeping in mind that this will always still use the same amount of memory as 8-way output. If unspecified (or if NULL is passed), a default 8-pin setup will be used (see example sketch). On RP2040 and RP235x, these are GP## numbers, not necessarily the digital pin numbers silkscreened on the board. </td></tr>
     <tr><td class="paramname">t</td><td>NeoPixel color data order, same as in Adafruit_NeoPixel library (optional, default is GRB). </td></tr>
   </table>
   </dd>
