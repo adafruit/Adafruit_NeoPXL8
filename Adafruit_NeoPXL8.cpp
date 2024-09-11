@@ -6,13 +6,13 @@
  * @file Adafruit_NeoPXL8.cpp
  *
  * @mainpage 8-way concurrent DMA NeoPixel library for SAMD21, SAMD51,
- * RP2040 and ESP32S3 microcontrollers.
+ * RP2040, RP235x, and ESP32S3 microcontrollers.
  *
  * @section intro_sec Introduction
  *
  * Adafruit_NeoPXL8 is an Arduino library that leverages hardware features
  * unique to some Atmel SAMD21 and SAMD51 microcontrollers, plus the
- * Raspberry Pi RP2040 and Espressif ESP32S3 (not S2, etc.) chips, to
+ * Raspberry Pi RP2040, RP235x, and Espressif ESP32S3 (not S2, etc.) chips, to
  * communicate with large numbers of NeoPixels with very low CPU utilization
  * and without losing track of time. It was originally designed for the
  * Adafruit Feather M0 board with NeoPXL8 FeatherWing interface/adapter,
@@ -41,9 +41,9 @@
  * gamma correction. This requires inordinate RAM, and the frequent need
  * for refreshing makes it best suited for multi-core chips (e.g. RP2040).
  *
- * RP2040 support requires Philhower core (not Arduino mbed core).
- * Also on RP2040, pin numbers passed to constructor are GP## indices,
- * not necessarily the digital pin numbers silkscreened on the board.
+ * RP2040 and RP235x support requires Philhower core (not Arduino mbed core).
+ * Also on RP2040 and RP235x, pin numbers passed to constructor are GP##
+ * indices, not necessarily the digital pin numbers silkscreened on the board.
  *
  * 0/1 bit timing does not precisely match NeoPixel/WS2812/SK6812 datasheet
  * specs, but it seems to work well enough. Use at your own peril.
@@ -109,6 +109,7 @@ Adafruit_NeoPXL8::Adafruit_NeoPXL8(uint16_t n, int8_t *p, neoPixelType t)
 static Adafruit_NeoPXL8 *neopxl8_ptr = NULL;
 
 #if defined(ARDUINO_ARCH_RP2040)
+// note that ARDUINO_ARCH_RP2040 blocks also apply to RP235x
 
 #define DMA_IRQ_N 1 ///< Can be 0 or 1, no functional difference, 1 looks cool
 
@@ -1295,7 +1296,7 @@ DMA-capable peripherals is exploited for byte-wide concurrent output
 (specifically the TCC0 pattern generator, which is normally used for
 motor control or some such). Although SAMD51 does have PORT DMA, the
 pattern generator approach is used there regardless, so similar code
-can be used for both chips. On RP2040, PIO code is used.
+can be used for both chips. On RP2040 and RP235x, PIO code is used.
 
 To issue 8 bits in parallel, all bytes of NeoPixel data must be "turned
 sideways" in RAM so all the bit 7's are issued concurrently, then all

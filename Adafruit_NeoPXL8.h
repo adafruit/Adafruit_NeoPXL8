@@ -5,8 +5,8 @@
 /*!
  * @file Adafruit_NeoPXL8.h
  *
- * 8-way concurrent DMA NeoPixel library for SAMD21, SAMD51, RP2040, and
- * ESP32S3 microcontrollers.
+ * 8-way concurrent DMA NeoPixel library for SAMD21, SAMD51, RP2040, RP235x,
+ * and ESP32S3 microcontrollers.
  *
  * Adafruit invests time and resources providing this open source code,
  * please support Adafruit and open-source hardware by purchasing
@@ -63,8 +63,8 @@ public:
             mind that this will always still use the same amount of memory
             as 8-way output. If unspecified (or if NULL is passed), a
             default 8-pin setup will be used (see example sketch).
-            On RP2040, these are GP## numbers, not necessarily the digital
-            pin numbers silkscreened on the board.
+            On RP2040 and RP235x, these are GP## numbers, not necessarily the
+            digital pin numbers silkscreened on the board.
     @param  t
             NeoPixel color data order, same as in Adafruit_NeoPixel library
             (optional, default is GRB).
@@ -207,7 +207,7 @@ protected:
          additions for 16-bits-per-channel color, temporal dithering,
          frame blending and gamma correction. This requires inordinate RAM,
          and the frequent need for refreshing makes it best suited for
-         multi-core chips (e.g. RP2040).
+         multi-core chips (e.g. RP2040, RP235x).
 */
 class Adafruit_NeoPXL8HDR : public Adafruit_NeoPXL8 {
 
@@ -227,8 +227,8 @@ public:
             mind that this will always still use the same amount of memory
             as 8-way output. If unspecified (or if NULL is passed), a
             default 8-pin setup will be used (see example sketch).
-            On RP2040, these are GP## numbers, not necessarily the digital
-            pin numbers silkscreened on the board.
+            On RP2040 and RP235x, these are GP## numbers, not necessarily the
+            digital pin numbers silkscreened on the board.
     @param  t
             NeoPixel color data order, same as in Adafruit_NeoPixel library
             (optional, default is GRB).
@@ -242,7 +242,7 @@ public:
                    refresh() function between show() calls (uses more RAM).
                    If false (default), no blending. This is useful ONLY if
                    sketch can devote time to many refresh() calls, e.g. on
-                   multicore RP2040.
+                   multicore RP2040 or RP235x.
     @param  bits   Number of bits for temporal dithering, 0-8. Higher values
                    provide more intermediate shades but slower refresh;
                    dither becomes more apparent. Default is 4, providing
@@ -506,8 +506,8 @@ public:
   /*!
     @brief   Query overall display refresh rate in frames-per-second.
              This is only an estimate and requires a moment to stabilize;
-             will initially be 0. It's really only helpful on RP2040 where
-             the refresh loop runs full-tilt on its own core; on SAMD,
+             will initially be 0. It's really only helpful on RP2040 and RP235x
+             where the refresh loop runs full-tilt on its own core; on SAMD,
              refresh is handled with a fixed timer interrupt.
     @return  Integer frames (pixel refreshes) per second.
   */
