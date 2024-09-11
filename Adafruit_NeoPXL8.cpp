@@ -91,7 +91,7 @@
 // NeoPixel spec)...usually only affects the 1st pixel, subsequent pixels OK
 // due to signal reshaping through the 1st.
 
-static const int8_t defaultPins[] = {0, 1, 2, 3, 4, 5, 6, 7};
+static const int8_t defaultPins[] = NEOPXL8_DEFAULT_PINS;
 static volatile bool sending = 0;     // Set while DMA transfer is active
 static volatile uint32_t lastBitTime; // micros() when last bit issued
 
@@ -505,7 +505,7 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
   dbuf = false;
 
   uint32_t buf_size = numLEDs * bytesPerPixel * 3 + EXTRASTARTBYTES + 3;
-  uint32_t alloc_size = dbuf ? buf_size * 2 : buf_size;
+  // uint32_t alloc_size = dbuf ? buf_size * 2 : buf_size;
 
   if ((allocAddr = (uint8_t *)malloc(buf_size))) {
     int i;
