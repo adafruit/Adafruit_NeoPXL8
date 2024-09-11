@@ -273,9 +273,14 @@ static void dmaCallback(Adafruit_ZeroDMA *dma) {
 
 Adafruit_NeoPXL8::~Adafruit_NeoPXL8() {
 #if defined(ARDUINO_ARCH_RP2040)
+  pio_sm_set_enabled(pio, sm, false);
+  pio_remove_program(pio, &neopxl8_program, offset);
+  pio_sm_unclaim(pio, sm);
   dma_channel_abort(dma_channel);
+  dma_channel_unclaim(dma_channel);
   if (dmaBuf[0])
     free(dmaBuf[0]);
+  irq_remove_handler(DMA_IRQ_N == 0 ? DMA_IRQ_0 : DMA_IRQ_1, dma_finish_irq);
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
   gdma_reset(dma_chan);
   if (allocAddr)
@@ -326,7 +331,7 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
       dmaBuf[1] = dbuf ? &dmaBuf[0][buf_size] : dmaBuf[0];
 
       // Set up PIO code & clock
-      uint offset = pio_add_program(pio, &neopxl8_program);
+      offset = pio_add_program(pio, &neopxl8_program);
       sm = pio_claim_unused_sm(pio, true); // 0-3
       pio_sm_config conf = pio_get_default_sm_config();
       conf.pinctrl = 0; // SDK fails to set this
