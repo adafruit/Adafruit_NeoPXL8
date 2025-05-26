@@ -294,11 +294,7 @@ Adafruit_NeoPXL8::~Adafruit_NeoPXL8() {
   neopxl8_ptr = NULL;
 }
 
-#if defined(ARDUINO_ARCH_RP2040)
-bool Adafruit_NeoPXL8::begin(bool dbuf, PIO pio_instance) {
-#else
 bool Adafruit_NeoPXL8::begin(bool dbuf) {
-#endif
   Adafruit_NeoPixel::begin(); // Call base class begin() function 1st
   if (pixels) {               // Successful malloc of NeoPixel buffer?
     uint8_t bytesPerPixel = (wOffset == rOffset) ? 3 : 4;
@@ -308,9 +304,6 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
     neopxl8_ptr = this; // Save object pointer for interrupt
 
 #if defined(ARDUINO_ARCH_RP2040)
-
-    pio = pio_instance;
-
     // Validate pins, must be within any 8 consecutive GPIO bits
     int16_t least_pin = 0x7FFF, most_pin = -1;
     for (uint8_t i = 0; i < 8; i++) {
@@ -332,8 +325,21 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
       dmaBuf[1] = dbuf ? &dmaBuf[0][buf_size] : dmaBuf[0];
 
       // Set up PIO code & clock
-      offset = pio_add_program(pio, &neopxl8_program);
-      sm = pio_claim_unused_sm(pio, true); // 0-3
+      // Find a PIO with enough available space in its instruction memory
+      pio = NULL;
+
+      if (! pio_claim_free_sm_and_add_program_for_gpio_range(&neopxl8_program, 
+                                                             &pio, &sm, &offset, 
+                                                             least_pin, 8, true)) {
+        pio = NULL;
+        sm = -1;
+        offset = 0;
+        return false; // No PIO available
+      }
+
+      
+      //offset = pio_add_program(pio, &neopxl8_program);
+      //sm = pio_claim_unused_sm(pio, true); // 0-3
       pio_sm_config conf = pio_get_default_sm_config();
       conf.pinctrl = 0; // SDK fails to set this
       sm_config_set_wrap(&conf, offset, offset + neopxl8_program.length - 1);
@@ -852,13 +858,8 @@ Adafruit_NeoPXL8HDR::~Adafruit_NeoPXL8HDR() {
     free(pixel_buf[0]);
 }
 
-#if defined(ARDUINO_ARCH_RP2040)
-bool Adafruit_NeoPXL8HDR::begin(bool blend, uint8_t bits, bool dbuf,
-                                PIO pio_instance) {
-#else
-bool Adafruit_NeoPXL8HDR::begin(bool blend, uint8_t bits, bool dbuf) {
-#endif
 
+bool Adafruit_NeoPXL8HDR::begin(bool blend, uint8_t bits, bool dbuf) {
   // If blend flag is set, allocate 3X pixel buffers, else 2X (for
   // temporal dithering only). Result is the buffer size in 16-bit
   // words (not bytes).
@@ -869,15 +870,12 @@ bool Adafruit_NeoPXL8HDR::begin(bool blend, uint8_t bits, bool dbuf) {
   if ((pixel_buf[0] = (uint16_t *)malloc(buf_size * sizeof(uint16_t)))) {
     if ((dither_table =
              (uint16_t *)malloc((1 << dither_bits) * sizeof(uint16_t)))) {
-#if defined(ARDUINO_ARCH_RP2040)
-      if (Adafruit_NeoPXL8::begin(dbuf, pio_instance)) {
-        mutex_init(&mutex);
-#else
       if (Adafruit_NeoPXL8::begin(dbuf)) {
-#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#if defined(ARDUINO_ARCH_RP2040)
+        mutex_init(&mutex);
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
         mutex = xSemaphoreCreateMutex();
-#endif // end ESP32S3
-#endif // end !RP2040
+#endif // end ESP32S3/RP2040
 
         // All allocations & initializations were successful.
         // Generate bit-flip table for ordered dithering...

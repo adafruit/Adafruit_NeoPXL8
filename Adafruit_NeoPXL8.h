@@ -81,11 +81,7 @@ public:
                   NeoPXL8HDR's use. Currently ignored on SAMD.
     @return true on successful alloc/init, false otherwise.
   */
-#if defined(ARDUINO_ARCH_RP2040)
-  bool begin(bool dbuf = false, PIO pio_instance = pio0);
-#else
   bool begin(bool dbuf = false);
-#endif
 
   /*!
     @brief  Process and issue new data to the NeoPixel strands.
@@ -175,11 +171,11 @@ public:
 
 protected:
 #if defined(ARDUINO_ARCH_RP2040)
-  PIO pio;                       ///< PIO peripheral
-  uint8_t sm;                    ///< State machine #
+  PIO pio = NULL;                ///< PIO peripheral
+  uint sm = -1;                  ///< State machine #
+  uint offset = 0;
   int dma_channel;               ///< DMA channel #
   dma_channel_config dma_config; ///< DMA configuration
-  uint offset;
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
   gdma_channel_handle_t dma_chan; ///< DMA channel
   dma_descriptor_t *desc;         ///< DMA descriptor pointer
@@ -253,12 +249,7 @@ public:
                    others just waste RAM. Currently ignored on SAMD.
     @return true on successful alloc/init, false otherwise.
   */
-#if defined(ARDUINO_ARCH_RP2040)
-  bool begin(bool blend = false, uint8_t bits = 4, bool dbuf = false,
-             PIO pio_instance = pio0);
-#else
   bool begin(bool blend = false, uint8_t bits = 4, bool dbuf = false);
-#endif
 
   /*!
     @brief  Set peak output brightness for all channels (RGB and W if
