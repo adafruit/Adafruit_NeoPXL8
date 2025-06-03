@@ -8,6 +8,7 @@
 // This is a companion to "move2msc" in the extras/Processing folder.
 // It plays preconverted videos from the on-board flash filesystem.
 
+#include "SdFat_Adafruit_Fork.h"
 #include <Adafruit_NeoPXL8.h>
 #include <Adafruit_CPFS.h> // For accessing CIRCUITPY drive
 #define ARDUINOJSON_ENABLE_COMMENTS 1

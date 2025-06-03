@@ -7,6 +7,7 @@
 
 // This is a companion to "move2serial" in the extras/Processing folder.
 
+#include "SdFat_Adafruit_Fork.h"
 #include <Adafruit_NeoPXL8.h>
 #include <Adafruit_CPFS.h> // For accessing CIRCUITPY drive
 #define ARDUINOJSON_ENABLE_COMMENTS 1
