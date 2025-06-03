@@ -328,18 +328,16 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
       // Find a PIO with enough available space in its instruction memory
       pio = NULL;
 
-      if (! pio_claim_free_sm_and_add_program_for_gpio_range(&neopxl8_program, 
-                                                             &pio, &sm, &offset, 
-                                                             least_pin, 8, true)) {
+      if (!pio_claim_free_sm_and_add_program_for_gpio_range(
+              &neopxl8_program, &pio, &sm, &offset, least_pin, 8, true)) {
         pio = NULL;
         sm = -1;
         offset = 0;
         return false; // No PIO available
       }
 
-      
-      //offset = pio_add_program(pio, &neopxl8_program);
-      //sm = pio_claim_unused_sm(pio, true); // 0-3
+      // offset = pio_add_program(pio, &neopxl8_program);
+      // sm = pio_claim_unused_sm(pio, true); // 0-3
       pio_sm_config conf = pio_get_default_sm_config();
       conf.pinctrl = 0; // SDK fails to set this
       sm_config_set_wrap(&conf, offset, offset + neopxl8_program.length - 1);
@@ -500,131 +498,133 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
 
 #else // SAMD
 
-  // Double-buffered DMA out is currently NOT supported on SAMD.
-  // Code's there but it causes weird flickering. All the pointer
-  // work looks right, I'm just speculating that this might have
-  // something to do with HDR refresh being timer interrupt-driven,
-  // that certain elements of the class might need to be declared
-  // volatile, which currently causes compilation mayhem.
-  // What with the timer interrupt, and needing to share cycles
-  // with the main thread of execution, I'm not sure it's helpful
-  // on SAMD anyway, mostly an RP2040 thing.
-  dbuf = false;
+    // Double-buffered DMA out is currently NOT supported on SAMD.
+    // Code's there but it causes weird flickering. All the pointer
+    // work looks right, I'm just speculating that this might have
+    // something to do with HDR refresh being timer interrupt-driven,
+    // that certain elements of the class might need to be declared
+    // volatile, which currently causes compilation mayhem.
+    // What with the timer interrupt, and needing to share cycles
+    // with the main thread of execution, I'm not sure it's helpful
+    // on SAMD anyway, mostly an RP2040 thing.
+    dbuf = false;
 
-  uint32_t buf_size = numLEDs * bytesPerPixel * 3 + EXTRASTARTBYTES + 3;
-  // uint32_t alloc_size = dbuf ? buf_size * 2 : buf_size;
+    uint32_t buf_size = numLEDs * bytesPerPixel * 3 + EXTRASTARTBYTES + 3;
+    // uint32_t alloc_size = dbuf ? buf_size * 2 : buf_size;
 
-  if ((allocAddr = (uint8_t *)malloc(buf_size))) {
-    int i;
+    if ((allocAddr = (uint8_t *)malloc(buf_size))) {
+      int i;
 
-    dma.setTrigger(TCC0_DMAC_ID_OVF);
-    dma.setAction(DMA_TRIGGER_ACTON_BEAT);
+      dma.setTrigger(TCC0_DMAC_ID_OVF);
+      dma.setAction(DMA_TRIGGER_ACTON_BEAT);
 
-    // Get address of first byte that's on a 32-bit boundary and at least
-    // EXTRASTARTBYTES into dmaBuf. This is where pixel data starts.
-    alignedAddr[0] =
-        (uint32_t *)((uint32_t)(&allocAddr[EXTRASTARTBYTES + 3]) & ~3);
+      // Get address of first byte that's on a 32-bit boundary and at least
+      // EXTRASTARTBYTES into dmaBuf. This is where pixel data starts.
+      alignedAddr[0] =
+          (uint32_t *)((uint32_t)(&allocAddr[EXTRASTARTBYTES + 3]) & ~3);
 
-    // DMA transfer then starts EXTRABYTES back from this to stabilize
-    dmaBuf[0] = (uint8_t *)alignedAddr[0] - EXTRASTARTBYTES;
-    memset(dmaBuf[0], 0, EXTRASTARTBYTES); // Initialize start with zeros
+      // DMA transfer then starts EXTRABYTES back from this to stabilize
+      dmaBuf[0] = (uint8_t *)alignedAddr[0] - EXTRASTARTBYTES;
+      memset(dmaBuf[0], 0, EXTRASTARTBYTES); // Initialize start with zeros
 
-    if (dbuf) {
-      alignedAddr[1] =
-          (uint32_t *)((uint32_t)(&allocAddr[buf_size + EXTRASTARTBYTES + 3]) &
-                       ~3);
-      dmaBuf[1] = (uint8_t *)alignedAddr[1] - EXTRASTARTBYTES;
-      memset(dmaBuf[1], 0, EXTRASTARTBYTES);
-    } else {
-      alignedAddr[1] = alignedAddr[0];
-      dmaBuf[1] = dmaBuf[0];
-    }
+      if (dbuf) {
+        alignedAddr[1] =
+            (uint32_t
+                 *)((uint32_t)(&allocAddr[buf_size + EXTRASTARTBYTES + 3]) &
+                    ~3);
+        dmaBuf[1] = (uint8_t *)alignedAddr[1] - EXTRASTARTBYTES;
+        memset(dmaBuf[1], 0, EXTRASTARTBYTES);
+      } else {
+        alignedAddr[1] = alignedAddr[0];
+        dmaBuf[1] = dmaBuf[0];
+      }
 
-    uint8_t *dst = &((uint8_t *)(&TCC0->PATT))[1]; // PAT.vec.PGV
-    dma.allocate();
-    desc = dma.addDescriptor(dmaBuf[dbuf_index], // source
-                             dst,                // destination
-                             buf_size -
-                                 3, // count (don't include alignment bytes!)
-                             DMA_BEAT_SIZE_BYTE, // size per
-                             true,               // increment source
-                             false);             // don't increment destination
+      uint8_t *dst = &((uint8_t *)(&TCC0->PATT))[1]; // PAT.vec.PGV
+      dma.allocate();
+      desc = dma.addDescriptor(dmaBuf[dbuf_index], // source
+                               dst,                // destination
+                               buf_size -
+                                   3, // count (don't include alignment bytes!)
+                               DMA_BEAT_SIZE_BYTE, // size per
+                               true,               // increment source
+                               false); // don't increment destination
 
-    dma.setCallback(dmaCallback);
+      dma.setCallback(dmaCallback);
 
 #ifdef __SAMD51__
-    // Set up generic clock gen 2 as source for TCC0
-    // Datasheet recommends setting GENCTRL register in a single write,
-    // so a temp value is used here to more easily construct a value.
-    GCLK_GENCTRL_Type genctrl;
-    genctrl.bit.SRC = GCLK_GENCTRL_SRC_DFLL_Val; // 48 MHz source
-    genctrl.bit.GENEN = 1;                       // Enable
-    genctrl.bit.OE = 1;
-    genctrl.bit.DIVSEL = 0; // Do not divide clock source
-    genctrl.bit.DIV = 0;
-    GCLK->GENCTRL[2].reg = genctrl.reg;
-    while (GCLK->SYNCBUSY.bit.GENCTRL1 == 1)
-      ;
+      // Set up generic clock gen 2 as source for TCC0
+      // Datasheet recommends setting GENCTRL register in a single write,
+      // so a temp value is used here to more easily construct a value.
+      GCLK_GENCTRL_Type genctrl;
+      genctrl.bit.SRC = GCLK_GENCTRL_SRC_DFLL_Val; // 48 MHz source
+      genctrl.bit.GENEN = 1;                       // Enable
+      genctrl.bit.OE = 1;
+      genctrl.bit.DIVSEL = 0; // Do not divide clock source
+      genctrl.bit.DIV = 0;
+      GCLK->GENCTRL[2].reg = genctrl.reg;
+      while (GCLK->SYNCBUSY.bit.GENCTRL1 == 1)
+        ;
 
-    GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN = 0;
-    while (GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN)
-      ; // Wait for disable
-    GCLK_PCHCTRL_Type pchctrl;
-    pchctrl.bit.GEN = GCLK_PCHCTRL_GEN_GCLK2_Val;
-    pchctrl.bit.CHEN = 1;
-    GCLK->PCHCTRL[TCC0_GCLK_ID].reg = pchctrl.reg;
-    while (!GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN)
-      ; // Wait for enable
+      GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN = 0;
+      while (GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN)
+        ; // Wait for disable
+      GCLK_PCHCTRL_Type pchctrl;
+      pchctrl.bit.GEN = GCLK_PCHCTRL_GEN_GCLK2_Val;
+      pchctrl.bit.CHEN = 1;
+      GCLK->PCHCTRL[TCC0_GCLK_ID].reg = pchctrl.reg;
+      while (!GCLK->PCHCTRL[TCC0_GCLK_ID].bit.CHEN)
+        ; // Wait for enable
 #else
-    // Enable GCLK for TCC0
-    GCLK->CLKCTRL.reg = (uint16_t)(GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 |
-                                   GCLK_CLKCTRL_ID(GCM_TCC0_TCC1));
-    while (GCLK->STATUS.bit.SYNCBUSY == 1)
-      ;
+      // Enable GCLK for TCC0
+      GCLK->CLKCTRL.reg =
+          (uint16_t)(GCLK_CLKCTRL_CLKEN | GCLK_CLKCTRL_GEN_GCLK0 |
+                     GCLK_CLKCTRL_ID(GCM_TCC0_TCC1));
+      while (GCLK->STATUS.bit.SYNCBUSY == 1)
+        ;
 #endif
 
-    // Disable TCC before configuring it
-    TCC0->CTRLA.bit.ENABLE = 0;
-    while (TCC0->SYNCBUSY.bit.ENABLE)
-      ;
+      // Disable TCC before configuring it
+      TCC0->CTRLA.bit.ENABLE = 0;
+      while (TCC0->SYNCBUSY.bit.ENABLE)
+        ;
 
-    TCC0->CTRLA.bit.PRESCALER = TCC_CTRLA_PRESCALER_DIV1_Val; // 1:1 Prescale
+      TCC0->CTRLA.bit.PRESCALER = TCC_CTRLA_PRESCALER_DIV1_Val; // 1:1 Prescale
 
-    TCC0->WAVE.bit.WAVEGEN = TCC_WAVE_WAVEGEN_NPWM_Val; // Normal PWM mode
-    while (TCC0->SYNCBUSY.bit.WAVE)
-      ;
+      TCC0->WAVE.bit.WAVEGEN = TCC_WAVE_WAVEGEN_NPWM_Val; // Normal PWM mode
+      while (TCC0->SYNCBUSY.bit.WAVE)
+        ;
 
-    TCC0->CC[0].reg = 0; // No PWM out
-    while (TCC0->SYNCBUSY.bit.CC0)
-      ;
+      TCC0->CC[0].reg = 0; // No PWM out
+      while (TCC0->SYNCBUSY.bit.CC0)
+        ;
 
-      // 2.4 GHz clock: 3 DMA xfers per NeoPixel bit = 800 KHz
+        // 2.4 GHz clock: 3 DMA xfers per NeoPixel bit = 800 KHz
 #ifdef __SAMD51__
-    TCC0->PER.reg = ((48000000 + 1200000) / 2400000) - 1;
+      TCC0->PER.reg = ((48000000 + 1200000) / 2400000) - 1;
 #else
-    TCC0->PER.reg = ((F_CPU + 1200000) / 2400000) - 1;
+      TCC0->PER.reg = ((F_CPU + 1200000) / 2400000) - 1;
 #endif
-    while (TCC0->SYNCBUSY.bit.PER)
-      ;
+      while (TCC0->SYNCBUSY.bit.PER)
+        ;
 
-    uint8_t enableMask = 0x00; // Bitmask of pattern gen outputs
-    for (i = 0; i < 8; i++) {
-      if ((bitmask[i] = configurePin(pins[i]))) // assign AND test!
-        enableMask |= bitmask[i];
+      uint8_t enableMask = 0x00; // Bitmask of pattern gen outputs
+      for (i = 0; i < 8; i++) {
+        if ((bitmask[i] = configurePin(pins[i]))) // assign AND test!
+          enableMask |= bitmask[i];
+      }
+      TCC0->PATT.vec.PGV = 0; // Set all pattern outputs to 0
+      while (TCC0->SYNCBUSY.bit.PATT)
+        ;
+      TCC0->PATT.vec.PGE = enableMask; // Enable pattern outputs
+      while (TCC0->SYNCBUSY.bit.PATT)
+        ;
+
+      TCC0->CTRLA.bit.ENABLE = 1;
+      while (TCC0->SYNCBUSY.bit.ENABLE)
+        ;
+
+      return true; // Success!
     }
-    TCC0->PATT.vec.PGV = 0; // Set all pattern outputs to 0
-    while (TCC0->SYNCBUSY.bit.PATT)
-      ;
-    TCC0->PATT.vec.PGE = enableMask; // Enable pattern outputs
-    while (TCC0->SYNCBUSY.bit.PATT)
-      ;
-
-    TCC0->CTRLA.bit.ENABLE = 1;
-    while (TCC0->SYNCBUSY.bit.ENABLE)
-      ;
-
-    return true; // Success!
-  }
 
 #endif // end SAMD
 
@@ -857,7 +857,6 @@ Adafruit_NeoPXL8HDR::~Adafruit_NeoPXL8HDR() {
   if (pixel_buf[0])
     free(pixel_buf[0]);
 }
-
 
 bool Adafruit_NeoPXL8HDR::begin(bool blend, uint8_t bits, bool dbuf) {
   // If blend flag is set, allocate 3X pixel buffers, else 2X (for
