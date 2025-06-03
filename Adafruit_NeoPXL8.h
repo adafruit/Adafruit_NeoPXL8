@@ -533,7 +533,7 @@ protected:
 #if defined(ARDUINO_ARCH_RP2040)
   mutex_t mutex; ///< For synchronizing cores
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
-  SemaphoreHandle_t mutex;        ///< For synchronizing cores
+  SemaphoreHandle_t mutex; ///< For synchronizing cores
 #endif
 };
 
