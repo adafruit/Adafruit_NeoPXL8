@@ -2,3 +2,4 @@
 Doxyfile*
 doxygen_sqlite3.db
 html
+_codeql_detected_source_root
