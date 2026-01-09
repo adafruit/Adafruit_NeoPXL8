@@ -177,6 +177,7 @@ static IRAM_ATTR bool dma_callback(gdma_channel_handle_t dma_chan,
 // gpio_ll_func_sel(). This wrapper provides backward compatibility while
 // supporting the new API.
 #if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
+  #include "hal/gpio_ll.h"
   static inline void _np8_set_pin_gpio(gpio_num_t gpio_num) {
     gpio_ll_func_sel(&GPIO, gpio_num, PIN_FUNC_GPIO);
   }
