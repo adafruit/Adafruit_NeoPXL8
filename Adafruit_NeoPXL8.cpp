@@ -172,7 +172,10 @@ static IRAM_ATTR bool dma_callback(gdma_channel_handle_t dma_chan,
   return true;
 }
 
-// Compatibility wrapper for GPIO configuration across ESP-IDF versions
+// Compatibility wrapper for GPIO configuration across ESP-IDF versions.
+// In ESP-IDF v5.x, gpio_hal_iomux_func_sel() was removed and replaced with
+// gpio_ll_func_sel(). This wrapper provides backward compatibility while
+// supporting the new API.
 #if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
   static inline void _np8_set_pin_gpio(gpio_num_t gpio_num) {
     gpio_ll_func_sel(&GPIO, gpio_num, PIN_FUNC_GPIO);
