@@ -33,6 +33,9 @@
 #include <esp_rom_gpio.h>
 #include <hal/dma_types.h>
 #include <hal/gpio_hal.h>
+#if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
+#include <hal/gpio_ll.h>
+#endif
 #include <soc/lcd_cam_struct.h>
 #else // SAMD
 #include <Adafruit_ZeroDMA.h>
