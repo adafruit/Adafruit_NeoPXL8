@@ -172,6 +172,18 @@ static IRAM_ATTR bool dma_callback(gdma_channel_handle_t dma_chan,
   return true;
 }
 
+// Compatibility wrapper for GPIO configuration across ESP-IDF versions
+#if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
+  #include "hal/gpio_ll.h"
+  static inline void _np8_set_pin_gpio(int gpio_num) {
+    gpio_ll_func_sel(&GPIO, (gpio_num_t)gpio_num, PIN_FUNC_GPIO);
+  }
+#else
+  static inline void _np8_set_pin_gpio(int gpio_num) {
+    gpio_hal_iomux_func_sel(GPIO_PIN_MUX_REG[gpio_num], PIN_FUNC_GPIO);
+  }
+#endif
+
 #else // SAMD
 
 // This table holds PORTs, bits and peripheral selects of valid pattern
@@ -462,7 +474,7 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
       for (int i = 0; i < 8; i++) {
         if (pins[i] >= 0) {
           esp_rom_gpio_connect_out_signal(pins[i], mux[i], false, false);
-          gpio_hal_iomux_func_sel(GPIO_PIN_MUX_REG[pins[i]], PIN_FUNC_GPIO);
+          _np8_set_pin_gpio(pins[i]);
           gpio_set_drive_capability((gpio_num_t)pins[i], (gpio_drive_cap_t)3);
           bitmask[i] = 1 << i;
         }
