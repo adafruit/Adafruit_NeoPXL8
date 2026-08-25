@@ -28,13 +28,15 @@
 #include "hardware/pio.h"
 #include "pico/mutex.h"
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
-#include <driver/periph_ctrl.h>
 #include <esp_private/gdma.h>
 #include <esp_rom_gpio.h>
 #include <hal/dma_types.h>
 #include <hal/gpio_hal.h>
 #if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR >= 5)
+#include <esp_private/periph_ctrl.h>
 #include <hal/gpio_ll.h>
+#else
+#include <driver/periph_ctrl.h>
 #endif
 #include <soc/lcd_cam_struct.h>
 #else // SAMD
