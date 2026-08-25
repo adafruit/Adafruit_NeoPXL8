@@ -497,7 +497,11 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
           .sibling_chan = NULL,
           .direction = GDMA_CHANNEL_DIRECTION_TX,
           .flags = {.reserve_sibling = 0}};
+#if defined(ESP_IDF_VERSION) && (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0))
+      gdma_new_ahb_channel(&dma_chan_config, &dma_chan);
+#else
       gdma_new_channel(&dma_chan_config, &dma_chan);
+#endif
       gdma_connect(dma_chan, GDMA_MAKE_TRIGGER(GDMA_TRIG_PERIPH_LCD, 0));
       gdma_strategy_config_t strategy_config = {.owner_check = false,
                                                 .auto_update_desc = false};
