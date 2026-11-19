@@ -494,8 +494,11 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
 
       // Alloc DMA channel & connect it to LCD periph
 #if defined(ESP_IDF_VERSION) &&                                                \
-    (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0))
+    (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0))
       gdma_channel_alloc_config_t dma_chan_config = {.intr_priority = 0};
+#elif defined(ESP_IDF_VERSION) &&                                              \
+    (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0))
+      gdma_channel_alloc_config_t dma_chan_config = {};
 #else
       gdma_channel_alloc_config_t dma_chan_config = {
           .sibling_chan = NULL,
