@@ -493,11 +493,22 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
       desc[num_desc - 1].next = NULL;
 
       // Alloc DMA channel & connect it to LCD periph
+#if defined(ESP_IDF_VERSION) &&                                                \
+    (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0))
+      gdma_channel_alloc_config_t dma_chan_config = {.intr_priority = 0};
+#elif defined(ESP_IDF_VERSION) &&                                              \
+    (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0))
+      gdma_channel_alloc_config_t dma_chan_config = {};
+#else
       gdma_channel_alloc_config_t dma_chan_config = {
           .sibling_chan = NULL,
           .direction = GDMA_CHANNEL_DIRECTION_TX,
           .flags = {.reserve_sibling = 0}};
+#endif
 #if defined(ESP_IDF_VERSION) &&                                                \
+    (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0))
+      gdma_new_ahb_channel(&dma_chan_config, &dma_chan, NULL);
+#elif defined(ESP_IDF_VERSION) &&                                              \
     (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0))
       gdma_new_ahb_channel(&dma_chan_config, &dma_chan);
 #else
@@ -617,7 +628,7 @@ bool Adafruit_NeoPXL8::begin(bool dbuf) {
       while (TCC0->SYNCBUSY.bit.CC0)
         ;
 
-        // 2.4 GHz clock: 3 DMA xfers per NeoPixel bit = 800 KHz
+      // 2.4 GHz clock: 3 DMA xfers per NeoPixel bit = 800 KHz
 #ifdef __SAMD51__
       TCC0->PER.reg = ((48000000 + 1200000) / 2400000) - 1;
 #else
@@ -767,7 +778,7 @@ void Adafruit_NeoPXL8::show(void) {
     // buffer while the current DMA transfer is in-progress.
     if (!staged)
       stage(); // Convert data
-      // Still have to wait for DMA to finish before latch check though.
+    // Still have to wait for DMA to finish before latch check though.
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
     while (LCD_CAM.lcd_user.lcd_start)
       ; // Wait for DMA IRQ
